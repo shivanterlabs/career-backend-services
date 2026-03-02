@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiGatewayRestApiId:
+    Type: String
+  ApiGatewayRootResourceId:
+    Type: String
+  StageName:
+    Type: String
+  Env:
+    Type: String
+    Default: Development
+  BucketName:
+    Type: String
+  DynamoDBTableSuffix:
+    Type: String
+    Default: dev
+  # Resource ID of /user/profile — exported by cc-user-get-profile stack
+  ApiGatewayUserProfileResourceId:
+    Type: String
+
+Resources:
+
+  # ── Lambda ───────────────────────────────────────────────────────────────────
+  UserUpdateProfileLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub cc-user-update-profile-${StageName}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          STAGE: !Ref StageName
+          USERS_TABLE: !Sub cc-users-${DynamoDBTableSuffix}
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cc-user-update-profile/function.zip
+      Role: !GetAtt UserUpdateProfileRole.Arn
+      TracingConfig:
+        Mode: Active
+
+  # ── IAM Role ─────────────────────────────────────────────────────────────────
+  UserUpdateProfileRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: UserUpdateProfilePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
+  # ── Lambda Permission ─────────────────────────────────────────────────────────
+  UserUpdateProfilePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UserUpdateProfileLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApiId}/*
+
+  # ── PUT /user/profile ─────────────────────────────────────────────────────────
+  # /user/profile resource already exists (created by cc-user-get-profile stack)
+  UserProfilePUTMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ResourceId: !Ref ApiGatewayUserProfileResourceId
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt UserUpdateProfileLambda.Arn }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"

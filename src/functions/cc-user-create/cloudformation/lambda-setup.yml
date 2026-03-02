@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiGatewayRestApiId:
+    Type: String
+  ApiGatewayRootResourceId:
+    Type: String
+  StageName:
+    Type: String
+  Env:
+    Type: String
+    Default: Development
+  BucketName:
+    Type: String
+  DynamoDBTableSuffix:
+    Type: String
+    Default: dev
+
+Resources:
+
+  # ── Lambda ───────────────────────────────────────────────────────────────────
+  UserCreateLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub cc-user-create-${StageName}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          STAGE: !Ref StageName
+          USERS_TABLE: !Sub cc-users-${DynamoDBTableSuffix}
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cc-user-create/function.zip
+      Role: !GetAtt UserCreateRole.Arn
+      TracingConfig:
+        Mode: Active
+
+  # ── IAM Role ─────────────────────────────────────────────────────────────────
+  UserCreateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: UserCreatePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
+  # ── Lambda Permission ─────────────────────────────────────────────────────────
+  UserCreatePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UserCreateLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApiId}/*
+
+  # ── API Gateway: /user ────────────────────────────────────────────────────────
+  UserResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ParentId: !Ref ApiGatewayRootResourceId
+      PathPart: user
+
+  # ── POST /user ────────────────────────────────────────────────────────────────
+  UserPOSTMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ResourceId: !Ref UserResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt UserCreateLambda.Arn }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+
+  # ── OPTIONS /user (CORS) ──────────────────────────────────────────────────────
+  UserOPTIONSMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ResourceId: !Ref UserResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{ "statusCode": 200 }'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST, OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type, Authorization'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+
+Outputs:
+  UserResourceId:
+    Description: API Gateway /user resource ID (used by cc-user-get-profile)
+    Value: !Ref UserResource
+    Export:
+      Name: !Sub cc-user-resource-id-${StageName}
