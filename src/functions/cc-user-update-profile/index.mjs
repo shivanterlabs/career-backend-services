@@ -155,3 +155,4 @@ export const handler = async (event) => {
     return response(500, { success: false, error: "Failed to update user profile" });
   }
 };
+
