@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiGatewayRestApiId:
+    Type: String
+  ApiGatewayRootResourceId:
+    Type: String
+  StageName:
+    Type: String
+  Env:
+    Type: String
+    Default: Development
+  BucketName:
+    Type: String
+  DynamoDBTableSuffix:
+    Type: String
+    Default: dev
+  # Resource ID of /admin/questions — exported by cc-admin-questions-create stack
+  ApiGatewayAdminQuestionsResourceId:
+    Type: String
+
+Resources:
+
+  # ── Lambda ───────────────────────────────────────────────────────────────────
+  AdminQuestionsUpdateLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub cc-admin-questions-update-${StageName}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          STAGE: !Ref StageName
+          QUESTIONS_TABLE: !Sub cc-questions-${DynamoDBTableSuffix}
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cc-admin-questions-update/function.zip
+      Role: !GetAtt AdminQuestionsUpdateRole.Arn
+      TracingConfig:
+        Mode: Active
+
+  # ── IAM Role ─────────────────────────────────────────────────────────────────
+  AdminQuestionsUpdateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AdminQuestionsUpdatePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-questions-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
+  # ── Lambda Permission ─────────────────────────────────────────────────────────
+  AdminQuestionsUpdatePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AdminQuestionsUpdateLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApiId}/*
+
+  # ── API Gateway: /admin/questions/{questionId} ────────────────────────────────
+  # /admin/questions resource already exists (created by cc-admin-questions-create stack)
+  AdminQuestionsQuestionIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ParentId: !Ref ApiGatewayAdminQuestionsResourceId
+      PathPart: "{questionId}"
+
+  # ── PUT /admin/questions/{questionId} ─────────────────────────────────────────
+  AdminQuestionsQuestionIdPUTMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ResourceId: !Ref AdminQuestionsQuestionIdResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt AdminQuestionsUpdateLambda.Arn }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+
+  # ── OPTIONS /admin/questions/{questionId} (CORS) ──────────────────────────────
+  AdminQuestionsQuestionIdOPTIONSMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ResourceId: !Ref AdminQuestionsQuestionIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{ "statusCode": 200 }'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'PUT, OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type, Authorization'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true

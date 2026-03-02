@@ -1,0 +1,91 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+
+// ── DynamoDB Client ──────────────────────────────────────────────────────────
+
+const client    = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-west-1" });
+const docClient = DynamoDBDocumentClient.from(client, {
+  marshallOptions: { removeUndefinedValues: true },
+});
+
+const QUESTIONS_TABLE = process.env.QUESTIONS_TABLE;
+
+// ── CORS Headers ─────────────────────────────────────────────────────────────
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin":  "*",
+  "Access-Control-Allow-Headers": "Content-Type,Authorization",
+  "Access-Control-Allow-Methods": "PUT,OPTIONS",
+  "Content-Type": "application/json",
+};
+
+const response = (statusCode, body) => ({
+  statusCode,
+  headers: CORS_HEADERS,
+  body: JSON.stringify(body),
+});
+
+// ── Allowed update fields ─────────────────────────────────────────────────────
+
+const ALLOWED = [
+  "section", "level", "type", "question", "imageUrl",
+  "options", "correctAnswerIds", "isActive", "order",
+];
+
+// ── Handler ──────────────────────────────────────────────────────────────────
+
+export const handler = async (event) => {
+  console.log("Event:", JSON.stringify(event, null, 2));
+
+  try {
+    const questionId = event.pathParameters?.questionId;
+    if (!questionId) {
+      return response(400, { success: false, error: "questionId path parameter is required" });
+    }
+
+    let body;
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      return response(400, { success: false, error: "Invalid JSON body" });
+    }
+
+    const updates = { updatedAt: new Date().toISOString() };
+    for (const field of ALLOWED) {
+      if (body[field] !== undefined) updates[field] = body[field];
+    }
+
+    if (Object.keys(updates).length === 1) {
+      return response(400, { success: false, error: "No valid fields to update" });
+    }
+
+    const parts  = [];
+    const names  = {};
+    const values = {};
+    for (const [key, val] of Object.entries(updates)) {
+      parts.push(`#${key} = :${key}`);
+      names[`#${key}`]  = key;
+      values[`:${key}`] = val;
+    }
+
+    const result = await docClient.send(
+      new UpdateCommand({
+        TableName:                 QUESTIONS_TABLE,
+        Key:                       { questionId },
+        UpdateExpression:          `SET ${parts.join(", ")}`,
+        ExpressionAttributeNames:  names,
+        ExpressionAttributeValues: values,
+        ConditionExpression:       "attribute_exists(questionId)",
+        ReturnValues:              "ALL_NEW",
+      })
+    );
+
+    return response(200, { success: true, data: result.Attributes });
+  } catch (error) {
+    if (error.name === "ConditionalCheckFailedException") {
+      return response(404, { success: false, error: "Question not found" });
+    }
+    console.error("Error updating question:", error);
+    return response(500, { success: false, error: "Failed to update question" });
+  }
+};
