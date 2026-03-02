@@ -1,0 +1,63 @@
+name: Deploy ChillCareer Infrastructure
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - "infrastructure/**"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-infrastructure:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: arn:aws:iam::134375574022:role/GitHubActionsDeploymentRole-chillcareer
+          role-session-name: GitHubActionsSession
+          aws-region: ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
+
+      # ── Step 1: Deploy DynamoDB Tables ──────────────────────────────────────
+      - name: Deploy DynamoDB Tables
+        run: |
+          aws cloudformation deploy \
+            --template-file infrastructure/dynamodb/tables.yml \
+            --stack-name cc-dynamodb-${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} \
+            --parameter-overrides \
+              Env=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
+
+      - name: Confirm DynamoDB tables
+        run: |
+          aws dynamodb list-tables \
+            --region ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }} \
+            --query 'TableNames[?contains(@, `cc-`)]' \
+            --output table
+
+      # ── Step 2: Deploy S3 Buckets ────────────────────────────────────────────
+      - name: Deploy S3 Buckets
+        run: |
+          aws cloudformation deploy \
+            --template-file infrastructure/s3/buckets.yml \
+            --stack-name cc-s3-${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} \
+            --parameter-overrides \
+              Env=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} \
+              Region=${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }} \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
+
+      - name: Confirm S3 buckets
+        run: |
+          aws s3 ls | grep chillcareer

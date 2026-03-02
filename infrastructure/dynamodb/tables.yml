@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: ChillCareer DynamoDB Tables
+
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+
+Resources:
+
+  # ── cc-users ────────────────────────────────────────────────────────────────
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-users-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: mobile
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: mobile-index
+          KeySchema:
+            - AttributeName: mobile
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ── cc-otps ─────────────────────────────────────────────────────────────────
+  OtpsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-otps-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: otpId
+          AttributeType: S
+        - AttributeName: target
+          AttributeType: S
+      KeySchema:
+        - AttributeName: otpId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: target-index
+          KeySchema:
+            - AttributeName: target
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  # ── cc-questions ─────────────────────────────────────────────────────────────
+  QuestionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-questions-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: questionId
+          AttributeType: S
+        - AttributeName: targetClass
+          AttributeType: S
+      KeySchema:
+        - AttributeName: questionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: class-index
+          KeySchema:
+            - AttributeName: targetClass
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ── cc-test-sessions ─────────────────────────────────────────────────────────
+  TestSessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-test-sessions-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ── cc-payments ──────────────────────────────────────────────────────────────
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-payments-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: paymentId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: paymentId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ── cc-reports ───────────────────────────────────────────────────────────────
+  ReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-reports-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: reportId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: reportId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ── cc-ai-chats ──────────────────────────────────────────────────────────────
+  AiChatsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-ai-chats-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: chatId
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: chatId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: userId-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+Outputs:
+  UsersTableName:
+    Value: !Ref UsersTable
+  OtpsTableName:
+    Value: !Ref OtpsTable
+  QuestionsTableName:
+    Value: !Ref QuestionsTable
+  TestSessionsTableName:
+    Value: !Ref TestSessionsTable
+  PaymentsTableName:
+    Value: !Ref PaymentsTable
+  ReportsTableName:
+    Value: !Ref ReportsTable
+  AiChatsTableName:
+    Value: !Ref AiChatsTable

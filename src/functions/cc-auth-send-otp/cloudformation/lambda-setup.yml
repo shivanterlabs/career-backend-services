@@ -1,0 +1,158 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiGatewayRestApiId:
+    Type: String
+    Description: The REST API ID for API Gateway
+  ApiGatewayRootResourceId:
+    Type: String
+    Description: The Root Resource ID for API Gateway
+  StageName:
+    Type: String
+    Description: The stage name (e.g., dev, prod)
+  Env:
+    Type: String
+    Default: Development
+  BucketName:
+    Type: String
+    Description: S3 bucket containing Lambda zip
+  DynamoDBTableSuffix:
+    Type: String
+    Default: dev
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+
+Resources:
+
+  # ── Lambda Function ──────────────────────────────────────────────────────────
+  AuthSendOtpLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub cc-auth-send-otp-${StageName}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 10
+      MemorySize: 256
+      Environment:
+        Variables:
+          STAGE: !Ref StageName
+          OTPS_TABLE: !Sub cc-otps-${DynamoDBTableSuffix}
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cc-auth-send-otp/function.zip
+      Role: !GetAtt AuthSendOtpLambdaExecutionRole.Arn
+      TracingConfig:
+        Mode: Active
+
+  # ── IAM Role ─────────────────────────────────────────────────────────────────
+  AuthSendOtpLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AuthSendOtpLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-otps-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
+  # ── Lambda Permission ─────────────────────────────────────────────────────────
+  AuthSendOtpLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AuthSendOtpLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApiId}/*
+
+  # ── API Gateway: /auth (root resource) ───────────────────────────────────────
+  AuthResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ParentId: !Ref ApiGatewayRootResourceId
+      PathPart: auth
+
+  # ── API Gateway: /auth/send-otp ───────────────────────────────────────────────
+  AuthSendOtpResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ParentId: !Ref AuthResource
+      PathPart: send-otp
+
+  # ── POST /auth/send-otp ───────────────────────────────────────────────────────
+  AuthSendOtpPOSTMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ResourceId: !Ref AuthSendOtpResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt AuthSendOtpLambda.Arn }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+            method.response.header.Access-Control-Allow-Methods: "'POST, OPTIONS'"
+            method.response.header.Access-Control-Allow-Headers: "'Content-Type, Authorization'"
+
+  # ── OPTIONS /auth/send-otp (CORS) ─────────────────────────────────────────────
+  AuthSendOtpOPTIONSMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ResourceId: !Ref AuthSendOtpResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{ "statusCode": 200 }'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST, OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type, Authorization'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
+
+Outputs:
+  AuthResourceId:
+    Description: API Gateway /auth resource ID (used by secondary auth functions)
+    Value: !Ref AuthResource
+    Export:
+      Name: !Sub cc-auth-resource-id-${StageName}

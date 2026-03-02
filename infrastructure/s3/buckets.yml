@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: ChillCareer S3 Buckets
+
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod]
+  Region:
+    Type: String
+    Description: AWS region suffix used in bucket name (e.g. eu-west-1, ap-south-1)
+
+Resources:
+
+  # ── Lambda deployment zips ────────────────────────────────────────────────────
+  # Stores function.zip for each Lambda function during CI/CD deployment.
+  LambdaZipsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub chillcareer-zips-${Region}
+      VersioningConfiguration:
+        Status: Suspended
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldZips
+            Status: Enabled
+            ExpirationInDays: 30     # keep last 30 days of zips only
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # ── Career report PDFs ────────────────────────────────────────────────────────
+  # Stores AI-generated PDF reports. URLs embedded in cc-reports DynamoDB records.
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub chillcareer-reports-${Env}
+      LifecycleConfiguration:
+        Rules:
+          - Id: MoveToIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: STANDARD_IA  # cheaper storage after 90 days
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET]
+            AllowedOrigins: ["*"]
+            MaxAge: 3600
+
+Outputs:
+  LambdaZipsBucketName:
+    Value: !Ref LambdaZipsBucket
+    Description: S3 bucket for Lambda deployment zips
+  ReportsBucketName:
+    Value: !Ref ReportsBucket
+    Description: S3 bucket for generated career report PDFs
+  ReportsBucketArn:
+    Value: !GetAtt ReportsBucket.Arn
+    Description: ARN of the reports bucket (used in Lambda IAM policies)
