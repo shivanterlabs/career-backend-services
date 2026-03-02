@@ -113,7 +113,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::756157886151:role/GitHubActionsDeploymentRole-chillcareer
+          role-to-assume: arn:aws:iam::134375574022:role/GitHubActionsDeploymentRole-chillcareer
           role-session-name: GitHubActionsSession
           aws-region: ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
 
@@ -242,7 +242,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::756157886151:role/GitHubActionsDeploymentRole-chillcareer
+          role-to-assume: arn:aws:iam::134375574022:role/GitHubActionsDeploymentRole-chillcareer
           role-session-name: GitHubActionsSession
           aws-region: ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
 
@@ -425,7 +425,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::756157886151:role/GitHubActionsDeploymentRole-chillcareer
+          role-to-assume: arn:aws:iam::134375574022:role/GitHubActionsDeploymentRole-chillcareer
           role-session-name: GitHubActionsSession
           aws-region: ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
 
