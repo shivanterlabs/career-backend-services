@@ -60,4 +60,4 @@ jobs:
 
       - name: Confirm S3 buckets
         run: |
-          aws s3 ls | grep chillcareer
+          aws s3 ls | grep cc-
