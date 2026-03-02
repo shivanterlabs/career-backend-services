@@ -10,7 +10,7 @@ Parameters:
 
 Resources:
 
-  # ── cc-users ────────────────────────────────────────────────────────────────
+  # ── cc-users ─────────────────────────────────────────────────────────────────
   UsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -40,7 +40,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # ── cc-otps ─────────────────────────────────────────────────────────────────
+  # ── cc-otps ──────────────────────────────────────────────────────────────────
   OtpsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -65,7 +65,35 @@ Resources:
         AttributeName: expiresAt
         Enabled: true
 
-  # ── cc-questions ─────────────────────────────────────────────────────────────
+  # ── cc-tests ─────────────────────────────────────────────────────────────────
+  # Admin-created test containers. One active test per testGroup at a time.
+  TestsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-tests-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: testId
+          AttributeType: S
+        - AttributeName: testGroup
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: testId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: testGroup-status-index
+          KeySchema:
+            - AttributeName: testGroup
+              KeyType: HASH
+            - AttributeName: status
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # ── cc-questions ──────────────────────────────────────────────────────────────
+  # Questions belong to a test. Admin creates/manages via Admin API.
   QuestionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -74,20 +102,28 @@ Resources:
       AttributeDefinitions:
         - AttributeName: questionId
           AttributeType: S
-        - AttributeName: targetClass
+        - AttributeName: testId
+          AttributeType: S
+        - AttributeName: testGroup
           AttributeType: S
       KeySchema:
         - AttributeName: questionId
           KeyType: HASH
       GlobalSecondaryIndexes:
-        - IndexName: class-index
+        - IndexName: testId-index
           KeySchema:
-            - AttributeName: targetClass
+            - AttributeName: testId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: testGroup-index
+          KeySchema:
+            - AttributeName: testGroup
               KeyType: HASH
           Projection:
             ProjectionType: ALL
 
-  # ── cc-test-sessions ─────────────────────────────────────────────────────────
+  # ── cc-test-sessions ──────────────────────────────────────────────────────────
   TestSessionsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -109,7 +145,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # ── cc-payments ──────────────────────────────────────────────────────────────
+  # ── cc-payments ───────────────────────────────────────────────────────────────
   PaymentsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -131,7 +167,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # ── cc-reports ───────────────────────────────────────────────────────────────
+  # ── cc-reports ────────────────────────────────────────────────────────────────
   ReportsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -153,7 +189,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # ── cc-ai-chats ──────────────────────────────────────────────────────────────
+  # ── cc-ai-chats ───────────────────────────────────────────────────────────────
   AiChatsTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -175,11 +211,57 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # ── cc-admins ─────────────────────────────────────────────────────────────────
+  AdminsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-admins-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: adminId
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: adminId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ── cc-email-templates ────────────────────────────────────────────────────────
+  EmailTemplatesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub cc-email-templates-${Env}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: templateId
+          AttributeType: S
+        - AttributeName: type
+          AttributeType: S
+      KeySchema:
+        - AttributeName: templateId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: type-index
+          KeySchema:
+            - AttributeName: type
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
 Outputs:
   UsersTableName:
     Value: !Ref UsersTable
   OtpsTableName:
     Value: !Ref OtpsTable
+  TestsTableName:
+    Value: !Ref TestsTable
   QuestionsTableName:
     Value: !Ref QuestionsTable
   TestSessionsTableName:
@@ -190,3 +272,7 @@ Outputs:
     Value: !Ref ReportsTable
   AiChatsTableName:
     Value: !Ref AiChatsTable
+  AdminsTableName:
+    Value: !Ref AdminsTable
+  EmailTemplatesTableName:
+    Value: !Ref EmailTemplatesTable

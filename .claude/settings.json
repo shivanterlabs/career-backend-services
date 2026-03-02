@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/User/.claude/projects 2>/dev/**)",
+      "Read(//c/Users/User/.claude/projects//**)",
+      "Read(//e/_brokermate_backend/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\User\\.claude\\projects\\e---disha-career-backend"
+    ]
+  }
+}

@@ -43,13 +43,13 @@ jobs:
             "cc-auth-send-otp"
             "cc-user-create"
             "cc-user-get-profile"
-            "cc-pretest-submit"
             "cc-questions-get"
             "cc-test-submit"
             "cc-payment-create-order"
             "cc-report-generate"
             "cc-ai-chat-message"
             "cc-notifications-send"
+            "cc-admin-auth-login"
           )
 
           # SECONDARY = attaches a method to an existing resource
@@ -59,6 +59,17 @@ jobs:
             "cc-user-update-profile"
             "cc-payment-verify"
             "cc-report-get"
+            "cc-ai-chat-summary"
+            "cc-admin-dashboard-get"
+            "cc-admin-users-get"
+            "cc-admin-users-send-email"
+            "cc-admin-tests-create"
+            "cc-admin-tests-update"
+            "cc-admin-questions-create"
+            "cc-admin-questions-get"
+            "cc-admin-questions-update"
+            "cc-admin-payments-get"
+            "cc-admin-email-templates-get"
           )
 
           build_json() {
@@ -313,6 +324,26 @@ jobs:
           elif [ "$FN" == "cc-report-get" ]; then
             ID=$(fetch_resource_id "items[?path=='/report'].id")
             echo "EXTRA_PARAMS=ApiGatewayReportResourceId=${ID}" >> $GITHUB_ENV
+
+          elif [ "$FN" == "cc-ai-chat-summary" ]; then
+            ID=$(fetch_resource_id "items[?path=='/ai'].id")
+            echo "EXTRA_PARAMS=ApiGatewayAiResourceId=${ID}" >> $GITHUB_ENV
+
+          elif [ "$FN" == "cc-admin-dashboard-get" ] || [ "$FN" == "cc-admin-users-get" ] || [ "$FN" == "cc-admin-tests-create" ] || [ "$FN" == "cc-admin-questions-create" ] || [ "$FN" == "cc-admin-payments-get" ] || [ "$FN" == "cc-admin-email-templates-get" ]; then
+            ID=$(fetch_resource_id "items[?path=='/admin'].id")
+            echo "EXTRA_PARAMS=ApiGatewayAdminResourceId=${ID}" >> $GITHUB_ENV
+
+          elif [ "$FN" == "cc-admin-users-send-email" ]; then
+            ID=$(fetch_resource_id "items[?path=='/admin/users'].id")
+            echo "EXTRA_PARAMS=ApiGatewayAdminUsersResourceId=${ID}" >> $GITHUB_ENV
+
+          elif [ "$FN" == "cc-admin-tests-update" ]; then
+            ID=$(fetch_resource_id "items[?path=='/admin/tests'].id")
+            echo "EXTRA_PARAMS=ApiGatewayAdminTestsResourceId=${ID}" >> $GITHUB_ENV
+
+          elif [ "$FN" == "cc-admin-questions-get" ] || [ "$FN" == "cc-admin-questions-update" ]; then
+            ID=$(fetch_resource_id "items[?path=='/admin/questions'].id")
+            echo "EXTRA_PARAMS=ApiGatewayAdminQuestionsResourceId=${ID}" >> $GITHUB_ENV
 
           else
             echo "EXTRA_PARAMS=" >> $GITHUB_ENV
