@@ -15,10 +15,11 @@ Resources:
 
   # ── Lambda deployment zips ────────────────────────────────────────────────────
   # Stores function.zip for each Lambda function during CI/CD deployment.
+  # Account ID is included to guarantee global uniqueness of the bucket name.
   LambdaZipsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub chillcareer-zips-${Region}
+      BucketName: !Sub cc-zips-${AWS::AccountId}-${Region}
       VersioningConfiguration:
         Status: Suspended
       LifecycleConfiguration:
@@ -37,7 +38,7 @@ Resources:
   ReportsBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub chillcareer-reports-${Env}
+      BucketName: !Sub cc-reports-${AWS::AccountId}-${Env}
       LifecycleConfiguration:
         Rules:
           - Id: MoveToIA

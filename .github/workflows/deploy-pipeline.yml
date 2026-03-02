@@ -113,7 +113,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::134375574022:role/GitHubActionsDeploymentRole-chillcareer
+          role-to-assume: arn:aws:iam::756157886151:role/GitHubActionsDeploymentRole-chillcareer
           role-session-name: GitHubActionsSession
           aws-region: ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
 
@@ -135,10 +135,10 @@ jobs:
       - name: Upload Lambda to S3
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            BUCKET="chillcareer-zips-ap-south-1"
+            BUCKET="cc-zips-134375574022-ap-south-1"
             REGION="ap-south-1"
           else
-            BUCKET="chillcareer-zips-eu-west-1"
+            BUCKET="cc-zips-134375574022-eu-west-1"
             REGION="eu-west-1"
           fi
           aws s3 cp src/functions/${{ matrix.function }}/function.zip \
@@ -190,7 +190,7 @@ jobs:
                 Env=${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }} \
                 ApiGatewayRestApiId=${{ github.ref == 'refs/heads/main' && 'PROD_API_ID' || 'ykq0pkeh54' }} \
                 ApiGatewayRootResourceId=${{ github.ref == 'refs/heads/main' && 'PROD_ROOT_RESOURCE_ID' || 'zxmxqud0of' }} \
-                BucketName=${{ github.ref == 'refs/heads/main' && 'chillcareer-zips-ap-south-1' || 'chillcareer-zips-eu-west-1' }} \
+                BucketName=${{ github.ref == 'refs/heads/main' && 'cc-zips-134375574022-ap-south-1' || 'cc-zips-134375574022-eu-west-1' }} \
                 DynamoDBTableSuffix=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} \
                 $EXTRA_PRIMARY_PARAMS \
               --capabilities CAPABILITY_NAMED_IAM && break
@@ -210,10 +210,10 @@ jobs:
       - name: Update Lambda code
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            BUCKET="chillcareer-zips-ap-south-1"
+            BUCKET="cc-zips-134375574022-ap-south-1"
             REGION="ap-south-1"
           else
-            BUCKET="chillcareer-zips-eu-west-1"
+            BUCKET="cc-zips-134375574022-eu-west-1"
             REGION="eu-west-1"
           fi
           aws lambda update-function-code \
@@ -242,7 +242,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::134375574022:role/GitHubActionsDeploymentRole-chillcareer
+          role-to-assume: arn:aws:iam::756157886151:role/GitHubActionsDeploymentRole-chillcareer
           role-session-name: GitHubActionsSession
           aws-region: ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
 
@@ -264,10 +264,10 @@ jobs:
       - name: Upload Lambda to S3
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            BUCKET="chillcareer-zips-ap-south-1"
+            BUCKET="cc-zips-134375574022-ap-south-1"
             REGION="ap-south-1"
           else
-            BUCKET="chillcareer-zips-eu-west-1"
+            BUCKET="cc-zips-134375574022-eu-west-1"
             REGION="eu-west-1"
           fi
           aws s3 cp src/functions/${{ matrix.function }}/function.zip \
@@ -382,7 +382,7 @@ jobs:
                 Env=${{ github.ref == 'refs/heads/main' && 'Production' || 'Development' }} \
                 ApiGatewayRestApiId=${{ github.ref == 'refs/heads/main' && 'PROD_API_ID' || 'ykq0pkeh54' }} \
                 ApiGatewayRootResourceId=${{ github.ref == 'refs/heads/main' && 'PROD_ROOT_RESOURCE_ID' || 'zxmxqud0of' }} \
-                BucketName=${{ github.ref == 'refs/heads/main' && 'chillcareer-zips-ap-south-1' || 'chillcareer-zips-eu-west-1' }} \
+                BucketName=${{ github.ref == 'refs/heads/main' && 'cc-zips-134375574022-ap-south-1' || 'cc-zips-134375574022-eu-west-1' }} \
                 DynamoDBTableSuffix=${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }} \
                 $EXTRA_PARAMS \
               --capabilities CAPABILITY_NAMED_IAM && break
@@ -402,10 +402,10 @@ jobs:
       - name: Update Lambda code
         run: |
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            BUCKET="chillcareer-zips-ap-south-1"
+            BUCKET="cc-zips-134375574022-ap-south-1"
             REGION="ap-south-1"
           else
-            BUCKET="chillcareer-zips-eu-west-1"
+            BUCKET="cc-zips-134375574022-eu-west-1"
             REGION="eu-west-1"
           fi
           aws lambda update-function-code \
@@ -425,7 +425,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: arn:aws:iam::134375574022:role/GitHubActionsDeploymentRole-chillcareer
+          role-to-assume: arn:aws:iam::756157886151:role/GitHubActionsDeploymentRole-chillcareer
           role-session-name: GitHubActionsSession
           aws-region: ${{ github.ref == 'refs/heads/main' && 'ap-south-1' || 'eu-west-1' }}
 
