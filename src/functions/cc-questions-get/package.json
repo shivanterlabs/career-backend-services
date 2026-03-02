@@ -1,0 +1,11 @@
+{
+  "name": "cc-questions-get",
+  "version": "1.0.0",
+  "description": "ChillCareer — Get questions for the active test by testGroup or class",
+  "type": "module",
+  "main": "index.mjs",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
+  }
+}
