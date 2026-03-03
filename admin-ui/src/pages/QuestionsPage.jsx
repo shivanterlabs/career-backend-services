@@ -3,10 +3,11 @@ import { adminApi } from "../api";
 
 // ── Section config — drives question type + option structure ─────────────────
 const SECTION_CONFIG = {
-  A: { label: "A — Interests (RIASEC)",    type: "triad",   fixedOptions: 3,    desc: "Forced-Choice Triad · 8 min · Ipsative scoring" },
-  B: { label: "B — Aptitude (MCQ)",        type: "mcq",     fixedOptions: null, desc: "Single correct answer · 20 min · 1 mark each" },
-  C: { label: "C — Personality (Pair)",    type: "pair",    fixedOptions: 2,    desc: "A/B Choice Pair · 8 min · Trait weighting" },
-  D: { label: "D — Work Values (Ranking)", type: "ranking", fixedOptions: 5,    desc: "Rank in order (1–5) · 9 min · Weighted scoring" },
+  A: { label: "A — Interests (RIASEC)",        type: "triad",   fixedOptions: 3,    desc: "Forced-Choice Triad · 8 min · Ipsative scoring" },
+  B: { label: "B — Aptitude (MCQ)",            type: "mcq",     fixedOptions: null, desc: "Single correct answer · 20 min · 1 mark each" },
+  C: { label: "C — Personality (Pair)",        type: "pair",    fixedOptions: 2,    desc: "A/B Choice Pair · 8 min · Trait weighting" },
+  D: { label: "D — Work Values (Ranking)",     type: "ranking", fixedOptions: 5,    desc: "Rank in order (1–5) · 9 min · Weighted scoring" },
+  E: { label: "E — Self-Declared Interest",    type: "text",    fixedOptions: 0,    desc: "Open-ended text response · Student types their own answer" },
 };
 
 const RIASEC_CODES   = ["R", "I", "A", "S", "E", "C"];
@@ -31,6 +32,7 @@ const getInitialOptions = (section) => {
       { id: uuid(), label: "", trait: "" },
     ];
     case "D": return Array.from({ length: 5 }, () => ({ id: uuid(), label: "" }));
+    case "E": return [];
     default:  return [];
   }
 };
@@ -168,17 +170,18 @@ function RankingOptionEditor({ options, onChange }) {
   };
   return (
     <div>
-      <span className="options-label">5 Values — student ranks them 1 (most) to 5 (least)</span>
+      <span className="options-label">5 Values — first 2 required · student ranks them in order of preference</span>
       {options.map((opt, i) => (
         <div className="option-row" key={opt.id}>
-          <span style={{ fontSize: 13, color: "#888", width: 22, flexShrink: 0 }}>{i + 1}.</span>
+          <span style={{ fontSize: 13, color: i < 2 ? "#555" : "#aaa", width: 22, flexShrink: 0 }}>{i + 1}.</span>
           <input
             value={opt.label}
             onChange={e => update(i, e.target.value)}
-            placeholder={`Value ${i + 1} (e.g. Work-Life Balance)`}
-            required
+            placeholder={i < 2 ? `Value ${i + 1} (required)` : `Value ${i + 1} (optional)`}
+            required={i < 2}
             style={{ flex: 1 }}
           />
+          {i >= 2 && <span style={{ fontSize: 11, color: "#bbb", flexShrink: 0 }}>optional</span>}
         </div>
       ))}
       <p style={{ fontSize: 12, color: "#888", marginTop: 4 }}>
@@ -214,7 +217,10 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
     e.preventDefault();
     setError("");
 
-    if (options.some(o => !o.label.trim())) {
+    if (cfg.type === "ranking") {
+      const filled = options.filter(o => o.label.trim()).length;
+      if (filled < 2) { setError("At least 2 ranking values are required"); return; }
+    } else if (cfg.type !== "text" && options.some(o => !o.label.trim())) {
       setError("All options must have a label"); return;
     }
     if (cfg.type === "mcq" && correctAnswerIds.length === 0) {
@@ -232,7 +238,10 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
         imageUrl:         imageUrl || null,
         correctAnswerIds: cfg.type === "mcq" ? correctAnswerIds : [],
         order:            Number(order),
-        options,          // each type stores what it needs
+        // ranking: strip empty optional slots; text: no options
+        options: cfg.type === "ranking"
+          ? options.filter(o => o.label.trim())
+          : cfg.type === "text" ? [] : options,
       };
       if (cfg.type === "mcq") payload.level = level;
 
@@ -286,7 +295,8 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
                 section === "A" ? "e.g. Choose from these three activities…" :
                 section === "B" ? "e.g. Which of the following is an example of…" :
                 section === "C" ? "e.g. When starting a project, I prefer to…" :
-                                  "e.g. Rank these work values in order of importance to you…"
+                section === "D" ? "e.g. Rank these work values in order of importance to you…" :
+                                  "e.g. Which career are you currently thinking about?"
               }
               required
             />
@@ -305,6 +315,14 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
             )}
             {section === "C" && <PairOptionEditor options={options} onChange={setOptions} />}
             {section === "D" && <RankingOptionEditor options={options} onChange={setOptions} />}
+            {section === "E" && (
+              <div style={{ padding: "12px 14px", background: "#f5f0ff", border: "1.5px dashed #c4b5fd", borderRadius: 8, fontSize: 13, color: "#6b21a8" }}>
+                📝 <strong>No options needed.</strong> The student will type their answer in a free-text box.
+                <div style={{ marginTop: 6, color: "#7c3aed", fontSize: 12 }}>
+                  Examples: "Which career are you thinking about?" · "What profession do your parents prefer?"
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="inline-row">
@@ -353,6 +371,7 @@ const SECTION_BADGE = {
   B: { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
   C: { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
   D: { bg: "#fce4ec", color: "#880e4f", border: "#f48fb1" },
+  E: { bg: "#f5f0ff", color: "#6b21a8", border: "#c4b5fd" },
 };
 
 // ── Question card (type-aware option display) ─────────────────────────────────
@@ -415,6 +434,13 @@ function QuestionCard({ q, idx, sec, toggling, onToggle }) {
               <span style={opt.optText}>{o.label}</span>
             </div>
           ))}
+        </div>
+      );
+    }
+    if (q.type === "text") {
+      return (
+        <div style={{ fontSize: 13, color: "#7c3aed", fontStyle: "italic", display: "flex", alignItems: "center", gap: 6 }}>
+          <span>📝</span> <span>Student types a free-text answer</span>
         </div>
       );
     }
