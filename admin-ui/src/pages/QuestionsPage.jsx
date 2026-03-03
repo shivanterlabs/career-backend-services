@@ -394,6 +394,149 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
   );
 }
 
+// ── Edit Question Modal ───────────────────────────────────────────────────────
+function EditQuestionModal({ q, onClose, onSaved }) {
+  const cfg = SECTION_CONFIG[q.section];
+
+  const [question,        setQuestion]        = useState(q.question || "");
+  const [imageUrl,        setImageUrl]        = useState(q.imageUrl || "");
+  const [level,           setLevel]           = useState(q.level || "medium");
+  const [order,           setOrder]           = useState(q.order ?? 0);
+  const [options,         setOptions]         = useState(q.options?.length ? q.options : getInitialOptions(q.section));
+  const [correctAnswerIds, setCorrect]        = useState(q.correctAnswerIds || []);
+  const [subType,         setSubType]         = useState(q.subType || "");
+  const [mirrorGroupId,   setMirrorGroupId]   = useState(q.mirrorGroupId || "");
+  const [loading,         setLoading]         = useState(false);
+  const [error,           setError]           = useState("");
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (cfg.type === "ranking") {
+      if (options.filter(o => o.label.trim()).length < 2) { setError("At least 2 ranking values are required"); return; }
+    } else if (cfg.type !== "text" && options.some(o => !o.label.trim())) {
+      setError("All options must have a label"); return;
+    }
+    if (cfg.type === "mcq" && correctAnswerIds.length === 0) {
+      setError("Select the correct answer"); return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        question:         question.trim(),
+        imageUrl:         imageUrl || null,
+        order:            Number(order),
+        mirrorGroupId:    mirrorGroupId.trim() || null,
+        options: cfg.type === "ranking"
+          ? options.filter(o => o.label.trim())
+          : cfg.type === "text" ? [] : options,
+        correctAnswerIds: cfg.type === "mcq" ? correctAnswerIds : [],
+      };
+      if (cfg.type === "mcq") {
+        payload.level   = level;
+        payload.subType = subType || null;
+      }
+      await adminApi.updateQuestion(q.questionId, payload);
+      onSaved();
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
+  const sb = SECTION_BADGE[q.section];
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 620 }}>
+        <h3>Edit Question</h3>
+
+        {/* Section badge (read-only) */}
+        <div style={{ background: sb.bg, border: `1.5px solid ${sb.border}`, borderRadius: 8, padding: "8px 12px", marginBottom: 16, fontSize: 12, color: sb.color }}>
+          <strong>{cfg.label}</strong> &nbsp;·&nbsp; {cfg.desc}
+        </div>
+
+        {error && <div className="error-msg">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Question / Prompt</label>
+            <textarea
+              value={question}
+              onChange={e => setQuestion(e.target.value)}
+              required={q.section !== "E"}
+            />
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            {q.section === "A" && <TriadOptionEditor options={options} onChange={setOptions} />}
+            {q.section === "B" && (
+              <>
+                <MCQOptionEditor
+                  options={options}
+                  correctAnswerIds={correctAnswerIds}
+                  onChange={setOptions}
+                  onCorrectChange={setCorrect}
+                />
+                <div className="form-group" style={{ marginTop: 12 }}>
+                  <label>Aptitude Sub-Type <span style={{ fontSize: 11, color: "#cf1322" }}>*required for scoring</span></label>
+                  <select value={subType} onChange={e => setSubType(e.target.value)} required>
+                    <option value="">— select sub-type —</option>
+                    {SUBTYPES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+            {q.section === "C" && <PairOptionEditor options={options} onChange={setOptions} />}
+            {q.section === "D" && <RankingOptionEditor options={options} onChange={setOptions} />}
+            {q.section === "E" && (
+              <div style={{ padding: "12px 14px", background: "#f5f0ff", border: "1.5px dashed #c4b5fd", borderRadius: 8, fontSize: 13, color: "#6b21a8" }}>
+                📝 <strong>No options needed.</strong> Student types a free-text answer.
+              </div>
+            )}
+          </div>
+
+          <div className="inline-row">
+            <div className="form-group">
+              <label>Order #</label>
+              <input type="number" value={order} onChange={e => setOrder(e.target.value)} min="0" />
+            </div>
+            {q.section === "B" && (
+              <div className="form-group">
+                <label>Difficulty</label>
+                <select value={level} onChange={e => setLevel(e.target.value)}>
+                  {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="form-group">
+              <label>Mirror Group ID <span style={{ fontSize: 11, color: "#888", fontWeight: 400 }}>(optional)</span></label>
+              <input
+                value={mirrorGroupId}
+                onChange={e => setMirrorGroupId(e.target.value)}
+                placeholder="e.g. riasec-R-1"
+              />
+            </div>
+            <div className="form-group">
+              <label>Image URL <span style={{ fontSize: 11, color: "#888", fontWeight: 400 }}>(optional)</span></label>
+              <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://…" />
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={loading}>
+              {loading ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Section colours ───────────────────────────────────────────────────────────
 const SECTION_BADGE = {
   A: { bg: "#fff3e0", color: "#e65100", border: "#ffcc80" },
@@ -404,7 +547,7 @@ const SECTION_BADGE = {
 };
 
 // ── Question card (type-aware option display) ─────────────────────────────────
-function QuestionCard({ q, idx, sec, toggling, onToggle }) {
+function QuestionCard({ q, idx, sec, toggling, onToggle, onEdit }) {
   const sb = SECTION_BADGE[sec];
 
   const renderOptions = () => {
@@ -493,6 +636,12 @@ function QuestionCard({ q, idx, sec, toggling, onToggle }) {
           )}
           <span style={{ ...qcard.statusDot, background: q.isActive ? "#16a34a" : "#d1d5db" }} title={q.isActive ? "Active" : "Inactive"} />
           <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => onEdit(q)}
+          >
+            Edit
+          </button>
+          <button
             className={`btn btn-sm ${q.isActive ? "btn-danger" : "btn-secondary"}`}
             onClick={() => onToggle(q)}
             disabled={toggling[q.questionId]}
@@ -539,6 +688,7 @@ export default function QuestionsPage({ admin, test, onBack, onLogout }) {
   const [questions, setQuestions]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [showModal, setShowModal]   = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState(null);
   const [activeTab, setActiveTab]   = useState("A");
   const [toggling, setToggling]     = useState({});
   const [modalSection, setModalSection] = useState("A");
@@ -674,6 +824,7 @@ export default function QuestionsPage({ admin, test, onBack, onLogout }) {
                 sec={activeTab}
                 toggling={toggling}
                 onToggle={toggleActive}
+                onEdit={setEditingQuestion}
               />
             ))
           )}
@@ -686,6 +837,14 @@ export default function QuestionsPage({ admin, test, onBack, onLogout }) {
           initialSection={modalSection}
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); load(); }}
+        />
+      )}
+
+      {editingQuestion && (
+        <EditQuestionModal
+          q={editingQuestion}
+          onClose={() => setEditingQuestion(null)}
+          onSaved={() => { setEditingQuestion(null); load(); }}
         />
       )}
     </div>

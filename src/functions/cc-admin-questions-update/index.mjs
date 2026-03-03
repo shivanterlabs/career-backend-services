@@ -30,6 +30,7 @@ const response = (statusCode, body) => ({
 const ALLOWED = [
   "section", "level", "type", "question", "imageUrl",
   "options", "correctAnswerIds", "isActive", "order",
+  "subType", "mirrorGroupId",
 ];
 
 // ── Handler ──────────────────────────────────────────────────────────────────
