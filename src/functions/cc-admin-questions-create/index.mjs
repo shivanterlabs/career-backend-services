@@ -77,7 +77,7 @@ export const handler = async (event) => {
       if (!testGroup)   return response(400, { success: false, error: "testGroup is required" });
       if (!type)        return response(400, { success: false, error: "type is required" });
       if (!question?.trim()) return response(400, { success: false, error: "question text is required" });
-      if (!options || !Array.isArray(options) || options.length < 2) {
+      if (type !== "text" && (!options || !Array.isArray(options) || options.length < 2)) {
         return response(400, { success: false, error: "At least 2 options are required" });
       }
 
