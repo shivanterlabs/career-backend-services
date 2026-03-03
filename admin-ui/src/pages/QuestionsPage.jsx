@@ -189,13 +189,13 @@ function RankingOptionEditor({ options, onChange }) {
 }
 
 // ── Create Question Modal ─────────────────────────────────────────────────────
-function CreateQuestionModal({ test, onClose, onCreated }) {
-  const [section, setSection]         = useState("A");
+function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" }) {
+  const [section, setSection]         = useState(initialSection);
   const [question, setQuestion]       = useState("");
   const [imageUrl, setImageUrl]       = useState("");
   const [level, setLevel]             = useState("medium");
   const [order, setOrder]             = useState(0);
-  const [options, setOptions]         = useState(getInitialOptions("A"));
+  const [options, setOptions]         = useState(getInitialOptions(initialSection));
   const [correctAnswerIds, setCorrect] = useState([]);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState("");
@@ -347,22 +347,140 @@ function CreateQuestionModal({ test, onClose, onCreated }) {
   );
 }
 
-// ── Section badge colours ─────────────────────────────────────────────────────
+// ── Section colours ───────────────────────────────────────────────────────────
 const SECTION_BADGE = {
-  A: { bg: "#fff3e0", color: "#e65100" },
-  B: { bg: "#e8f5e9", color: "#2e7d32" },
-  C: { bg: "#e3f2fd", color: "#1565c0" },
-  D: { bg: "#fce4ec", color: "#880e4f" },
+  A: { bg: "#fff3e0", color: "#e65100", border: "#ffcc80" },
+  B: { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
+  C: { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+  D: { bg: "#fce4ec", color: "#880e4f", border: "#f48fb1" },
 };
 
-const TYPE_LABEL = { triad: "Triad", mcq: "MCQ", pair: "Pair", ranking: "Ranking" };
+// ── Question card (type-aware option display) ─────────────────────────────────
+function QuestionCard({ q, idx, sec, toggling, onToggle }) {
+  const sb = SECTION_BADGE[sec];
+
+  const renderOptions = () => {
+    if (!q.options?.length) return null;
+    if (q.type === "triad") {
+      return (
+        <div style={opt.triadGrid}>
+          {q.options.map(o => (
+            <div key={o.id} style={opt.triadItem}>
+              <span style={{ ...opt.riasecBadge, background: sb.bg, color: sb.color, border: `1px solid ${sb.border}` }}>
+                {o.riasecCode}
+              </span>
+              <span style={opt.optText}>{o.label}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (q.type === "mcq") {
+      return (
+        <div style={opt.optGrid}>
+          {q.options.map(o => {
+            const correct = (q.correctAnswerIds || []).includes(o.id);
+            return (
+              <div key={o.id} style={{ ...opt.mcqItem, ...(correct ? opt.mcqCorrect : {}) }}>
+                {o.emoji && <span>{o.emoji}</span>}
+                <span style={opt.optText}>{o.label}</span>
+                {correct && <span style={opt.correctMark}>✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    if (q.type === "pair") {
+      return (
+        <div style={opt.pairRow}>
+          {q.options.map((o, i) => (
+            <div key={o.id} style={opt.pairItem}>
+              <span style={opt.pairLetter}>{["A","B"][i]}</span>
+              <div>
+                <div style={opt.optText}>{o.label}</div>
+                {o.trait && <div style={opt.traitLabel}>→ {o.trait}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (q.type === "ranking") {
+      return (
+        <div style={opt.rankList}>
+          {q.options.map((o, i) => (
+            <div key={o.id} style={opt.rankItem}>
+              <span style={opt.rankNum}>{i + 1}</span>
+              <span style={opt.optText}>{o.label}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div style={{ ...qcard.wrap, opacity: q.isActive ? 1 : 0.55 }}>
+      <div style={qcard.header}>
+        <span style={qcard.num}>#{q.order ?? idx + 1}</span>
+        <p style={qcard.question}>{q.question}</p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+          {sec === "B" && q.level && (
+            <span style={{ ...qcard.levelBadge }}>{q.level}</span>
+          )}
+          <span style={{ ...qcard.statusDot, background: q.isActive ? "#16a34a" : "#d1d5db" }} title={q.isActive ? "Active" : "Inactive"} />
+          <button
+            className={`btn btn-sm ${q.isActive ? "btn-danger" : "btn-secondary"}`}
+            onClick={() => onToggle(q)}
+            disabled={toggling[q.questionId]}
+          >
+            {toggling[q.questionId] ? "…" : q.isActive ? "Deactivate" : "Activate"}
+          </button>
+        </div>
+      </div>
+      <div style={qcard.body}>{renderOptions()}</div>
+    </div>
+  );
+}
+
+// Card / option styles (plain objects — no CSS-in-JS library needed)
+const qcard = {
+  wrap:       { background: "#fff", border: "1px solid #e8e8f0", borderRadius: 12, marginBottom: 12, overflow: "hidden" },
+  header:     { display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px", borderBottom: "1px solid #f2f2f7" },
+  num:        { fontSize: 11, fontWeight: 700, color: "#aaa", flexShrink: 0, marginTop: 2 },
+  question:   { flex: 1, fontSize: 14, fontWeight: 600, color: "#1a1a2e", lineHeight: 1.5, margin: 0 },
+  body:       { padding: "12px 16px", background: "#fafafe" },
+  statusDot:  { width: 8, height: 8, borderRadius: "50%", flexShrink: 0 },
+  levelBadge: { fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 10, background: "#f0f0f5", color: "#555" },
+};
+const opt = {
+  optText:    { fontSize: 13, color: "#374151" },
+  triadGrid:  { display: "flex", flexDirection: "column", gap: 6 },
+  triadItem:  { display: "flex", alignItems: "center", gap: 8 },
+  riasecBadge:{ fontSize: 11, fontWeight: 800, padding: "2px 7px", borderRadius: 6 },
+  optGrid:    { display: "flex", flexWrap: "wrap", gap: 6 },
+  mcqItem:    { display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, background: "#f0f0f5", fontSize: 13 },
+  mcqCorrect: { background: "#dcfce7", outline: "1.5px solid #16a34a" },
+  correctMark:{ color: "#16a34a", fontWeight: 800, fontSize: 12 },
+  pairRow:    { display: "flex", gap: 12, flexWrap: "wrap" },
+  pairItem:   { flex: 1, minWidth: 200, display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px", background: "#f0f0f5", borderRadius: 8 },
+  pairLetter: { fontSize: 13, fontWeight: 800, color: "#6c63ff", flexShrink: 0 },
+  traitLabel: { fontSize: 11, color: "#6c63ff", fontWeight: 600, marginTop: 2 },
+  rankList:   { display: "flex", flexWrap: "wrap", gap: 6 },
+  rankItem:   { display: "flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "#f0f0f5", borderRadius: 8 },
+  rankNum:    { fontSize: 12, fontWeight: 800, color: "#6c63ff", minWidth: 16 },
+};
 
 // ── Questions Page ────────────────────────────────────────────────────────────
 export default function QuestionsPage({ admin, test, onBack, onLogout }) {
-  const [questions, setQuestions] = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [toggling, setToggling]   = useState({});
+  const [questions, setQuestions]   = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [showModal, setShowModal]   = useState(false);
+  const [activeTab, setActiveTab]   = useState("A");
+  const [toggling, setToggling]     = useState({});
+  const [modalSection, setModalSection] = useState("A");
 
   const load = async () => {
     setLoading(true);
@@ -390,12 +508,11 @@ export default function QuestionsPage({ admin, test, onBack, onLogout }) {
     }
   };
 
-  // Group questions by section for display
-  const bySec = ["A", "B", "C", "D"].map(sec => ({
-    sec,
-    cfg: SECTION_CONFIG[sec],
-    qs: questions.filter(q => q.section === sec),
-  })).filter(g => g.qs.length > 0);
+  const openModal = () => { setModalSection(activeTab); setShowModal(true); };
+
+  const tabQs   = questions.filter(q => q.section === activeTab);
+  const tabCfg  = SECTION_CONFIG[activeTab];
+  const tabSb   = SECTION_BADGE[activeTab];
 
   return (
     <div className="page">
@@ -416,86 +533,88 @@ export default function QuestionsPage({ admin, test, onBack, onLogout }) {
           <span className={`badge badge-${test.status}`} style={{ marginLeft: 4 }}>{test.status}</span>
         </div>
 
-        {/* Section summary strip */}
-        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+        {/* ── Section Tabs ─────────────────────────────────────────────────── */}
+        <div style={{ display: "flex", gap: 0, marginBottom: 0, background: "#fff", borderRadius: "12px 12px 0 0", border: "1px solid #e8e8f0", borderBottom: "none", overflow: "hidden" }}>
           {Object.entries(SECTION_CONFIG).map(([sec, cfg]) => {
-            const count = questions.filter(q => q.section === sec).length;
-            const sb = SECTION_BADGE[sec];
+            const count   = questions.filter(q => q.section === sec).length;
+            const active  = sec === activeTab;
+            const sb      = SECTION_BADGE[sec];
             return (
-              <div key={sec} style={{ background: sb.bg, color: sb.color, borderRadius: 10, padding: "8px 14px", fontSize: 13, fontWeight: 600 }}>
-                Section {sec} — {cfg.type.toUpperCase()} &nbsp;·&nbsp; {count} questions
-              </div>
+              <button
+                key={sec}
+                onClick={() => setActiveTab(sec)}
+                style={{
+                  flex: 1,
+                  padding: "14px 8px 12px",
+                  border: "none",
+                  borderBottom: active ? `3px solid ${sb.color}` : "3px solid transparent",
+                  background: active ? sb.bg : "#fff",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                }}
+              >
+                <div style={{ fontSize: 11, fontWeight: 700, color: active ? sb.color : "#aaa", letterSpacing: 1, marginBottom: 2 }}>
+                  SECTION {sec}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: active ? sb.color : "#555" }}>
+                  {cfg.label.split("—")[1]?.trim().split(" (")[0]}
+                </div>
+                <div style={{
+                  marginTop: 5,
+                  display: "inline-block",
+                  background: active ? sb.color : "#e8e8f0",
+                  color: active ? "#fff" : "#888",
+                  fontSize: 11, fontWeight: 700,
+                  padding: "1px 8px", borderRadius: 20,
+                }}>
+                  {count} {count === 1 ? "question" : "questions"}
+                </div>
+              </button>
             );
           })}
         </div>
 
-        <div className="card">
-          <div className="section-header">
-            <h2>Questions ({questions.length})</h2>
-            <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add Question</button>
+        {/* ── Active Section Panel ─────────────────────────────────────────── */}
+        <div style={{ background: "#fff", border: "1px solid #e8e8f0", borderTop: "none", borderRadius: "0 0 12px 12px", padding: 20, marginBottom: 20 }}>
+
+          {/* Section meta bar */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#1a1a2e" }}>{tabCfg.label}</div>
+                <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{tabCfg.desc}</div>
+              </div>
+            </div>
+            <button className="btn btn-primary" onClick={openModal}>
+              + Add to Section {activeTab}
+            </button>
           </div>
 
+          {/* Questions */}
           {loading ? (
             <div className="spinner">Loading…</div>
-          ) : questions.length === 0 ? (
-            <div className="empty-state">No questions yet. Add the first question to a section.</div>
+          ) : tabQs.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px 24px", border: "2px dashed #e0e0f0", borderRadius: 12, color: "#aaa" }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>
+                {activeTab === "A" ? "💡" : activeTab === "B" ? "🧠" : activeTab === "C" ? "🎭" : "⚖️"}
+              </div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>No questions in Section {activeTab} yet</div>
+              <div style={{ fontSize: 13 }}>{tabCfg.desc}</div>
+              <button className="btn btn-primary" onClick={openModal} style={{ marginTop: 14 }}>
+                Add first question →
+              </button>
+            </div>
           ) : (
-            bySec.map(({ sec, cfg, qs }) => {
-              const sb = SECTION_BADGE[sec];
-              return (
-                <div key={sec} style={{ marginBottom: 28 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <span style={{ background: sb.bg, color: sb.color, padding: "4px 12px", borderRadius: 20, fontSize: 13, fontWeight: 700 }}>
-                      Section {sec}
-                    </span>
-                    <span style={{ fontSize: 13, color: "#888" }}>{cfg.label.split("—")[1]?.trim()} · {cfg.desc}</span>
-                  </div>
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Question / Prompt</th>
-                          <th>Options / Items</th>
-                          {sec === "B" && <th>Level</th>}
-                          <th>Active</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {qs.map((q, i) => (
-                          <tr key={q.questionId}>
-                            <td style={{ color: "#aaa", fontSize: 12 }}>{q.order ?? i + 1}</td>
-                            <td style={{ maxWidth: 320 }}>{q.question}</td>
-                            <td>
-                              <div className="q-options">
-                                {(q.options || []).map(o => (
-                                  <span key={o.id} style={{ display: "inline-block", marginRight: 6, marginBottom: 2 }}>
-                                    {o.emoji && <>{o.emoji} </>}
-                                    {o.label}
-                                    {o.riasecCode && <span style={{ color: "#888", fontSize: 11 }}> [{o.riasecCode}]</span>}
-                                    {o.trait && <span style={{ color: "#888", fontSize: 11 }}> → {o.trait}</span>}
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            {sec === "B" && <td style={{ fontSize: 12, color: "#888" }}>{q.level || "—"}</td>}
-                            <td>
-                              <button
-                                className={`btn btn-sm ${q.isActive ? "btn-danger" : "btn-secondary"}`}
-                                onClick={() => toggleActive(q)}
-                                disabled={toggling[q.questionId]}
-                              >
-                                {toggling[q.questionId] ? "…" : q.isActive ? "Deactivate" : "Activate"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              );
-            })
+            tabQs.map((q, i) => (
+              <QuestionCard
+                key={q.questionId}
+                q={q}
+                idx={i}
+                sec={activeTab}
+                toggling={toggling}
+                onToggle={toggleActive}
+              />
+            ))
           )}
         </div>
       </div>
@@ -503,6 +622,7 @@ export default function QuestionsPage({ admin, test, onBack, onLogout }) {
       {showModal && (
         <CreateQuestionModal
           test={test}
+          initialSection={modalSection}
           onClose={() => setShowModal(false)}
           onCreated={() => { setShowModal(false); load(); }}
         />
