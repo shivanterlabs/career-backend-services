@@ -3,7 +3,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Parameters:
   ApiGatewayRestApiId:
     Type: String
-  ApiGatewayRootResourceId:
+  ApiGatewayReportResourceId:     # imported from cc-report-generate stack
     Type: String
   StageName:
     Type: String
@@ -19,30 +19,28 @@ Parameters:
 Resources:
 
   # ── Lambda ───────────────────────────────────────────────────────────────────
-  TestSubmitLambda:
+  ReportGetLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub cc-test-submit-${StageName}
+      FunctionName: !Sub cc-report-get-${StageName}
       Handler: index.handler
       Runtime: nodejs20.x
       Timeout: 15
       MemorySize: 256
       Environment:
         Variables:
-          STAGE:                    !Ref StageName
-          TESTS_TABLE:              !Sub cc-tests-${DynamoDBTableSuffix}
-          TEST_SESSIONS_TABLE:      !Sub cc-test-sessions-${DynamoDBTableSuffix}
-          USERS_TABLE:              !Sub cc-users-${DynamoDBTableSuffix}
-          REPORT_GENERATE_FUNCTION: !Sub cc-report-generate-${StageName}
+          STAGE:          !Ref StageName
+          REPORTS_TABLE:  !Sub cc-reports-${DynamoDBTableSuffix}
+          USERS_TABLE:    !Sub cc-users-${DynamoDBTableSuffix}
       Code:
         S3Bucket: !Ref BucketName
-        S3Key: cc-test-submit/function.zip
-      Role: !GetAtt TestSubmitRole.Arn
+        S3Key: cc-report-get/function.zip
+      Role: !GetAtt ReportGetRole.Arn
       TracingConfig:
         Mode: Active
 
   # ── IAM Role ─────────────────────────────────────────────────────────────────
-  TestSubmitRole:
+  ReportGetRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -53,7 +51,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: TestSubmitPolicy
+        - PolicyName: ReportGetPolicy
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
@@ -61,23 +59,13 @@ Resources:
                 Action:
                   - dynamodb:GetItem
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-tests-${DynamoDBTableSuffix}
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
               - Effect: Allow
                 Action:
-                  - dynamodb:PutItem
+                  - dynamodb:Query
                 Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-test-sessions-${DynamoDBTableSuffix}
-              - Effect: Allow
-                Action:
-                  - dynamodb:UpdateItem
-                Resource:
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
-              - Effect: Allow
-                Action:
-                  - lambda:InvokeFunction
-                Resource:
-                  - !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:cc-report-generate-${StageName}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-reports-${DynamoDBTableSuffix}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-reports-${DynamoDBTableSuffix}/index/userId-index
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup
@@ -91,55 +79,47 @@ Resources:
                 Resource: "*"
 
   # ── Lambda Permission ─────────────────────────────────────────────────────────
-  TestSubmitPermission:
+  ReportGetPermission:
     Type: AWS::Lambda::Permission
     Properties:
-      FunctionName: !Ref TestSubmitLambda
+      FunctionName: !Ref ReportGetLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApiId}/*
 
-  # ── API Gateway: /test ────────────────────────────────────────────────────────
-  TestResource:
+  # ── API Gateway: /report/{userId} ────────────────────────────────────────────
+  ReportUserIdResource:
     Type: AWS::ApiGateway::Resource
     Properties:
       RestApiId: !Ref ApiGatewayRestApiId
-      ParentId:  !Ref ApiGatewayRootResourceId
-      PathPart:  test
+      ParentId:  !Ref ApiGatewayReportResourceId
+      PathPart:  "{userId}"
 
-  # ── API Gateway: /test/submit ─────────────────────────────────────────────────
-  TestSubmitResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      RestApiId: !Ref ApiGatewayRestApiId
-      ParentId:  !Ref TestResource
-      PathPart:  submit
-
-  # ── POST /test/submit ─────────────────────────────────────────────────────────
-  TestSubmitPOSTMethod:
+  # ── GET /report/{userId} ─────────────────────────────────────────────────────
+  ReportGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId:         !Ref ApiGatewayRestApiId
-      ResourceId:        !Ref TestSubmitResource
-      HttpMethod:        POST
+      ResourceId:        !Ref ReportUserIdResource
+      HttpMethod:        GET
       AuthorizationType: NONE
       Integration:
         Type:                  AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
-          - { LambdaArn: !GetAtt TestSubmitLambda.Arn }
+          - { LambdaArn: !GetAtt ReportGetLambda.Arn }
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: "'*'"
 
-  # ── OPTIONS /test/submit (CORS) ───────────────────────────────────────────────
-  TestSubmitOPTIONSMethod:
+  # ── OPTIONS /report/{userId} (CORS) ──────────────────────────────────────────
+  ReportGetOptionsMethod:
     Type: AWS::ApiGateway::Method
     Properties:
       RestApiId:         !Ref ApiGatewayRestApiId
-      ResourceId:        !Ref TestSubmitResource
+      ResourceId:        !Ref ReportUserIdResource
       HttpMethod:        OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -150,7 +130,7 @@ Resources:
           - StatusCode: 200
             ResponseParameters:
               method.response.header.Access-Control-Allow-Origin:  "'*'"
-              method.response.header.Access-Control-Allow-Methods: "'POST, OPTIONS'"
+              method.response.header.Access-Control-Allow-Methods: "'GET, OPTIONS'"
               method.response.header.Access-Control-Allow-Headers: "'Content-Type, Authorization'"
       MethodResponses:
         - StatusCode: 200
@@ -158,10 +138,3 @@ Resources:
             method.response.header.Access-Control-Allow-Origin:  true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Headers: true
-
-Outputs:
-  TestResourceId:
-    Description: API Gateway /test resource ID
-    Value: !Ref TestResource
-    Export:
-      Name: !Sub cc-test-resource-id-${StageName}

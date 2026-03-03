@@ -191,6 +191,8 @@ function RankingOptionEditor({ options, onChange }) {
   );
 }
 
+const SUBTYPES = ["numerical", "logical", "verbal", "spatial"];
+
 // ── Create Question Modal ─────────────────────────────────────────────────────
 function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" }) {
   const [section, setSection]         = useState(initialSection);
@@ -200,6 +202,8 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
   const [order, setOrder]             = useState(0);
   const [options, setOptions]         = useState(getInitialOptions(initialSection));
   const [correctAnswerIds, setCorrect] = useState([]);
+  const [subType, setSubType]         = useState("");
+  const [mirrorGroupId, setMirrorGroupId] = useState("");
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState("");
 
@@ -210,6 +214,7 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
     setSection(s);
     setOptions(getInitialOptions(s));
     setCorrect([]);
+    setSubType("");
     setError("");
   };
 
@@ -238,12 +243,16 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
         imageUrl:         imageUrl || null,
         correctAnswerIds: cfg.type === "mcq" ? correctAnswerIds : [],
         order:            Number(order),
+        mirrorGroupId:    mirrorGroupId.trim() || null,
         // ranking: strip empty optional slots; text: no options
         options: cfg.type === "ranking"
           ? options.filter(o => o.label.trim())
           : cfg.type === "text" ? [] : options,
       };
-      if (cfg.type === "mcq") payload.level = level;
+      if (cfg.type === "mcq") {
+        payload.level   = level;
+        payload.subType = subType || null;
+      }
 
       await adminApi.createQuestion(payload);
       onCreated();
@@ -306,12 +315,24 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
           <div style={{ marginBottom: 16 }}>
             {section === "A" && <TriadOptionEditor options={options} onChange={setOptions} />}
             {section === "B" && (
-              <MCQOptionEditor
-                options={options}
-                correctAnswerIds={correctAnswerIds}
-                onChange={setOptions}
-                onCorrectChange={setCorrect}
-              />
+              <>
+                <MCQOptionEditor
+                  options={options}
+                  correctAnswerIds={correctAnswerIds}
+                  onChange={setOptions}
+                  onCorrectChange={setCorrect}
+                />
+                <div className="form-group" style={{ marginTop: 12 }}>
+                  <label>Aptitude Sub-Type <span style={{ fontSize: 11, color: "#cf1322" }}>*required for scoring</span></label>
+                  <select value={subType} onChange={e => setSubType(e.target.value)} required>
+                    <option value="">— select sub-type —</option>
+                    {SUBTYPES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  </select>
+                  {!subType && (
+                    <p style={{ fontSize: 12, color: "#cf1322", marginTop: 4 }}>⚠ Sub-type is required to compute aptitude percentiles in the report.</p>
+                  )}
+                </div>
+              </>
             )}
             {section === "C" && <PairOptionEditor options={options} onChange={setOptions} />}
             {section === "D" && <RankingOptionEditor options={options} onChange={setOptions} />}
@@ -344,7 +365,15 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
               </div>
             )}
             <div className="form-group">
-              <label>Image URL (optional)</label>
+              <label>Mirror Group ID <span style={{ fontSize: 11, color: "#888", fontWeight: 400 }}>(optional)</span></label>
+              <input
+                value={mirrorGroupId}
+                onChange={e => setMirrorGroupId(e.target.value)}
+                placeholder="e.g. riasec-R-1 · consistency-pair-3"
+              />
+            </div>
+            <div className="form-group">
+              <label>Image URL <span style={{ fontSize: 11, color: "#888", fontWeight: 400 }}>(optional)</span></label>
               <input
                 value={imageUrl}
                 onChange={e => setImageUrl(e.target.value)}
@@ -455,6 +484,12 @@ function QuestionCard({ q, idx, sec, toggling, onToggle }) {
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
           {sec === "B" && q.level && (
             <span style={{ ...qcard.levelBadge }}>{q.level}</span>
+          )}
+          {sec === "B" && q.subType && (
+            <span style={{ ...qcard.levelBadge, background: "#e8f5e9", color: "#2e7d32" }}>{q.subType}</span>
+          )}
+          {q.mirrorGroupId && (
+            <span style={{ ...qcard.levelBadge, background: "#fff3e0", color: "#e65100" }} title={`Mirror group: ${q.mirrorGroupId}`}>🔗 mirror</span>
           )}
           <span style={{ ...qcard.statusDot, background: q.isActive ? "#16a34a" : "#d1d5db" }} title={q.isActive ? "Active" : "Inactive"} />
           <button

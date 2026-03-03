@@ -1,0 +1,111 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiGatewayRestApiId:
+    Type: String
+  ApiGatewayRootResourceId:
+    Type: String
+  StageName:
+    Type: String
+  Env:
+    Type: String
+    Default: Development
+  BucketName:
+    Type: String
+  DynamoDBTableSuffix:
+    Type: String
+    Default: dev
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+
+Resources:
+
+  # ── Lambda ───────────────────────────────────────────────────────────────────
+  ReportGenerateLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub cc-report-generate-${StageName}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 120        # Claude AI call + scoring can take up to 2 min
+      MemorySize: 512
+      Environment:
+        Variables:
+          STAGE:               !Ref StageName
+          TEST_SESSIONS_TABLE: !Sub cc-test-sessions-${DynamoDBTableSuffix}
+          QUESTIONS_TABLE:     !Sub cc-questions-${DynamoDBTableSuffix}
+          USERS_TABLE:         !Sub cc-users-${DynamoDBTableSuffix}
+          REPORTS_TABLE:       !Sub cc-reports-${DynamoDBTableSuffix}
+          ANTHROPIC_API_KEY:   !Ref AnthropicApiKey
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cc-report-generate/function.zip
+      Role: !GetAtt ReportGenerateRole.Arn
+      TracingConfig:
+        Mode: Active
+
+  # ── IAM Role ─────────────────────────────────────────────────────────────────
+  ReportGenerateRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ReportGeneratePolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-test-sessions-${DynamoDBTableSuffix}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-questions-${DynamoDBTableSuffix}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-questions-${DynamoDBTableSuffix}/index/testId-index
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-reports-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
+  # ── API Gateway: /report resource (PRIMARY — for cc-report-get to attach under) ─
+  ReportResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ParentId:  !Ref ApiGatewayRootResourceId
+      PathPart:  report
+
+Outputs:
+  ReportResourceId:
+    Description: API Gateway /report resource ID
+    Value: !Ref ReportResource
+    Export:
+      Name: !Sub cc-report-resource-id-${StageName}

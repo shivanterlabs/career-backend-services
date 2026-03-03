@@ -1,12 +1,11 @@
 {
-  "name": "cc-test-submit",
+  "name": "cc-report-get",
   "version": "1.0.0",
-  "description": "ChillCareer — Submit test answers and timings",
+  "description": "ChillCareer — Fetch career report (partial if unpaid, full if paid)",
   "type": "module",
   "main": "index.mjs",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/client-lambda": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0"
   }
 }

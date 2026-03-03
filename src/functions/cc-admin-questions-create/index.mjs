@@ -71,6 +71,7 @@ export const handler = async (event) => {
       const {
         testId, testGroup, section, level, type,
         question, options, correctAnswerIds, imageUrl, order,
+        subType, mirrorGroupId,
       } = body;
 
       if (!testId)      return response(400, { success: false, error: "testId is required" });
@@ -98,6 +99,8 @@ export const handler = async (event) => {
             imageUrl:         imageUrl         || null,
             options,
             correctAnswerIds: correctAnswerIds || [],
+            subType:          subType          || null,
+            mirrorGroupId:    mirrorGroupId    || null,
             isActive:         true,
             order:            order            ?? 0,
             createdAt:        now,

@@ -1,5 +1,6 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { LambdaClient, InvokeCommand } from "@aws-sdk/client-lambda";
 import { randomUUID } from "crypto";
 
 // ── DynamoDB Client ──────────────────────────────────────────────────────────
@@ -8,10 +9,12 @@ const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-west-1
 const docClient = DynamoDBDocumentClient.from(client, {
   marshallOptions: { removeUndefinedValues: true },
 });
+const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || "eu-west-1" });
 
-const TESTS_TABLE         = process.env.TESTS_TABLE;
-const TEST_SESSIONS_TABLE = process.env.TEST_SESSIONS_TABLE;
-const USERS_TABLE         = process.env.USERS_TABLE;
+const TESTS_TABLE              = process.env.TESTS_TABLE;
+const TEST_SESSIONS_TABLE      = process.env.TEST_SESSIONS_TABLE;
+const USERS_TABLE              = process.env.USERS_TABLE;
+const REPORT_GENERATE_FUNCTION = process.env.REPORT_GENERATE_FUNCTION;
 
 // ── CORS Headers ─────────────────────────────────────────────────────────────
 
@@ -118,6 +121,23 @@ export const handler = async (event) => {
         },
       })
     );
+
+    // ── Async trigger: generate report ────────────────────────────────────────
+    if (REPORT_GENERATE_FUNCTION) {
+      try {
+        await lambdaClient.send(
+          new InvokeCommand({
+            FunctionName:   REPORT_GENERATE_FUNCTION,
+            InvocationType: "Event", // async fire-and-forget
+            Payload:        Buffer.from(JSON.stringify({ sessionId, userId })),
+          })
+        );
+        console.log("Report generation triggered for session:", sessionId);
+      } catch (invokeErr) {
+        // Non-fatal: session is saved; report generation will be retried later
+        console.error("Failed to trigger report generation:", invokeErr.message);
+      }
+    }
 
     return response(200, {
       success: true,

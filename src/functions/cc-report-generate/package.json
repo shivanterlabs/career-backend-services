@@ -1,12 +1,12 @@
 {
-  "name": "cc-test-submit",
+  "name": "cc-report-generate",
   "version": "1.0.0",
-  "description": "ChillCareer — Submit test answers and timings",
+  "description": "ChillCareer — Generate career report using scoring engine + Claude AI",
   "type": "module",
   "main": "index.mjs",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
     "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/client-lambda": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0"
   }
 }
