@@ -298,7 +298,7 @@ function CreateQuestionModal({ test, onClose, onCreated, initialSection = "A" })
                 section === "D" ? "e.g. Rank these work values in order of importance to you…" :
                                   "e.g. Which career are you currently thinking about?"
               }
-              required
+              required={section !== "E"}
             />
           </div>
 
