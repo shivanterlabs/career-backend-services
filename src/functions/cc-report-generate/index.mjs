@@ -766,6 +766,7 @@ export const handler = async (event) => {
         overallPercentile: aptitude.overallPercentile,
         bySubType:         aptitude.subTypePercentiles,
       },
+      paymentDone:   false,
       pdfUrl:        null, // generated separately on demand
       generatedAt:   now,
       modelVersion:  `claude-sonnet-4-6 v${REPORT_VERSION}`,

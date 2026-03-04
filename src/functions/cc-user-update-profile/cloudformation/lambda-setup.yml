@@ -32,8 +32,9 @@ Resources:
       MemorySize: 256
       Environment:
         Variables:
-          STAGE: !Ref StageName
-          USERS_TABLE: !Sub cc-users-${DynamoDBTableSuffix}
+          STAGE:         !Ref StageName
+          USERS_TABLE:   !Sub cc-users-${DynamoDBTableSuffix}
+          REPORTS_TABLE: !Sub cc-reports-${DynamoDBTableSuffix}
       Code:
         S3Bucket: !Ref BucketName
         S3Key: cc-user-update-profile/function.zip
@@ -62,6 +63,13 @@ Resources:
                   - dynamodb:UpdateItem
                 Resource:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-reports-${DynamoDBTableSuffix}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-reports-${DynamoDBTableSuffix}/index/userId-index
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup

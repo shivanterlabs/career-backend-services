@@ -70,6 +70,7 @@ jobs:
             "cc-admin-questions-update"
             "cc-admin-payments-get"
             "cc-admin-email-templates-get"
+            "cc-report-pdf"
           )
 
           build_json() {
@@ -324,6 +325,15 @@ jobs:
           elif [ "$FN" == "cc-report-get" ]; then
             ID=$(fetch_resource_id "items[?path=='/report'].id")
             echo "EXTRA_PARAMS=ApiGatewayReportResourceId=${ID}" >> $GITHUB_ENV
+
+          elif [ "$FN" == "cc-report-pdf" ]; then
+            ID=$(fetch_resource_id "items[?path=='/report'].id")
+            if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+              REPORTS_BUCKET="cc-reports-134375574022-prod"
+            else
+              REPORTS_BUCKET="cc-reports-134375574022-dev"
+            fi
+            echo "EXTRA_PARAMS=ApiGatewayReportResourceId=${ID} ReportsBucketName=${REPORTS_BUCKET}" >> $GITHUB_ENV
 
           elif [ "$FN" == "cc-ai-chat-summary" ]; then
             ID=$(fetch_resource_id "items[?path=='/ai'].id")

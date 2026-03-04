@@ -72,10 +72,6 @@ export const handler = async (event) => {
       return response(404, { success: false, error: "User not found" });
     }
 
-    if (userResult.Item.testCompleted) {
-      return response(409, { success: false, error: "Test already submitted" });
-    }
-
     // ── Look up test to get testGroup ─────────────────────────────────────────
     const testResult = await docClient.send(
       new GetCommand({ TableName: TESTS_TABLE, Key: { testId } })
@@ -114,10 +110,11 @@ export const handler = async (event) => {
       new UpdateCommand({
         TableName: USERS_TABLE,
         Key: { userId },
-        UpdateExpression: "SET testCompleted = :true, updatedAt = :now",
+        UpdateExpression: "SET testCompleted = :true, reportReady = :false, updatedAt = :now",
         ExpressionAttributeValues: {
-          ":true": true,
-          ":now":  now,
+          ":true":  true,
+          ":false": false,
+          ":now":   now,
         },
       })
     );

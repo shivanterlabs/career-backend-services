@@ -25,25 +25,100 @@ const response = (statusCode, body) => ({
   body: JSON.stringify(body),
 });
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const queryUserReports = (userId) =>
+  dynamo.send(new QueryCommand({
+    TableName:                 REPORTS_TABLE,
+    IndexName:                 "userId-index",
+    KeyConditionExpression:    "#userId = :userId",
+    ExpressionAttributeNames:  { "#userId": "userId" },
+    ExpressionAttributeValues: { ":userId": userId },
+    ScanIndexForward:          false, // newest first
+  }));
+
+const fullReportPayload = (report) => ({
+  reportId:             report.reportId,
+  sessionId:            report.sessionId,
+  isPartial:            false,
+  paymentDone:          true,
+  careerMatches:        report.careerMatches,
+  personalityProfile:   report.personalityProfile,
+  streamRecommendation: report.streamRecommendation,
+  streamJustification:  report.streamJustification,
+  strengthsSummary:     report.strengthsSummary,
+  behaviourInsights:    report.behaviourInsights,
+  workValuesProfile:    report.workValuesProfile,
+  subjectInsights:      report.subjectInsights,
+  selfDeclared:         report.selfDeclared,
+  aptitudeSummary:      report.aptitudeSummary,
+  roadmap:              report.roadmap,
+  pdfUrl:               report.pdfUrl || null,
+  generatedAt:          report.generatedAt,
+  modelVersion:         report.modelVersion,
+});
+
+const partialReportPayload = (report) => ({
+  reportId:        report.reportId,
+  sessionId:       report.sessionId,
+  isPartial:       true,
+  paymentDone:     false,
+  partialReport:   report.partialReport,
+  generatedAt:     report.generatedAt,
+  paymentRequired: true,
+});
+
 // ── Handler ───────────────────────────────────────────────────────────────────
 
 export const handler = async (event) => {
   console.log("Event:", JSON.stringify(event, null, 2));
 
   try {
-    // userId from path parameter: GET /report/{userId}
     const userId = event.pathParameters?.userId;
     if (!userId) {
       return response(400, { success: false, error: "userId path parameter is required" });
     }
 
-    // ── Fetch user to check payment status ────────────────────────────────────
+    const qs       = event.queryStringParameters || {};
+    const listMode = qs.list === "true";
+    const reportId = qs.reportId;
+
+    // ── Check user exists + generating state ──────────────────────────────────
     const userRes = await dynamo.send(new GetCommand({ TableName: USERS_TABLE, Key: { userId } }));
     if (!userRes.Item) {
       return response(404, { success: false, error: "User not found" });
     }
     const user = userRes.Item;
 
+    // ── LIST mode: return all report summaries ────────────────────────────────
+    if (listMode) {
+      const reportsRes = await queryUserReports(userId);
+      const items      = reportsRes.Items || [];
+
+      const summaries = items.map(r => ({
+        reportId:    r.reportId,
+        sessionId:   r.sessionId,
+        generatedAt: r.generatedAt,
+        paymentDone: r.paymentDone === true,
+        topCareer:   r.careerMatches?.[0]?.career || r.partialReport?.topCareers?.[0]?.career || null,
+        matchScore:  r.careerMatches?.[0]?.matchScore || r.partialReport?.topCareers?.[0]?.matchScore || null,
+      }));
+
+      return response(200, { success: true, data: { reports: summaries } });
+    }
+
+    // ── SPECIFIC report by reportId ───────────────────────────────────────────
+    if (reportId) {
+      const reportRes = await dynamo.send(new GetCommand({ TableName: REPORTS_TABLE, Key: { reportId } }));
+      if (!reportRes.Item || reportRes.Item.userId !== userId) {
+        return response(404, { success: false, error: "Report not found" });
+      }
+      const report = reportRes.Item;
+      const paid   = report.paymentDone === true;
+      return response(200, { success: true, data: paid ? fullReportPayload(report) : partialReportPayload(report) });
+    }
+
+    // ── DEFAULT: latest report ────────────────────────────────────────────────
     if (!user.reportReady) {
       return response(202, {
         success: true,
@@ -51,62 +126,16 @@ export const handler = async (event) => {
       });
     }
 
-    // ── Fetch latest report for this user ─────────────────────────────────────
-    const reportRes = await dynamo.send(
-      new QueryCommand({
-        TableName:                 REPORTS_TABLE,
-        IndexName:                 "userId-index",
-        KeyConditionExpression:    "#userId = :userId",
-        ExpressionAttributeNames:  { "#userId": "userId" },
-        ExpressionAttributeValues: { ":userId": userId },
-        ScanIndexForward:          false, // newest first
-        Limit:                     1,
-      })
-    );
-
+    const reportRes = await queryUserReports(userId);
     if (!reportRes.Items?.length) {
       return response(404, { success: false, error: "Report not found" });
     }
 
     const report = reportRes.Items[0];
-    const paid   = user.paymentDone === true;
+    const paid   = report.paymentDone === true;
 
-    if (!paid) {
-      // ── Return partial teaser only ─────────────────────────────────────────
-      return response(200, {
-        success: true,
-        data: {
-          reportId:      report.reportId,
-          isPartial:     true,
-          partialReport: report.partialReport,
-          generatedAt:   report.generatedAt,
-          paymentRequired: true,
-        },
-      });
-    }
+    return response(200, { success: true, data: paid ? fullReportPayload(report) : partialReportPayload(report) });
 
-    // ── Return full report ────────────────────────────────────────────────────
-    return response(200, {
-      success: true,
-      data: {
-        reportId:             report.reportId,
-        isPartial:            false,
-        careerMatches:        report.careerMatches,
-        personalityProfile:   report.personalityProfile,
-        streamRecommendation: report.streamRecommendation,
-        streamJustification:  report.streamJustification,
-        strengthsSummary:     report.strengthsSummary,
-        behaviourInsights:    report.behaviourInsights,
-        workValuesProfile:    report.workValuesProfile,
-        subjectInsights:      report.subjectInsights,
-        selfDeclared:         report.selfDeclared,
-        aptitudeSummary:      report.aptitudeSummary,
-        roadmap:              report.roadmap,
-        pdfUrl:               report.pdfUrl || null,
-        generatedAt:          report.generatedAt,
-        modelVersion:         report.modelVersion,
-      },
-    });
   } catch (error) {
     console.error("Error fetching report:", error);
     return response(500, { success: false, error: "Failed to fetch report" });

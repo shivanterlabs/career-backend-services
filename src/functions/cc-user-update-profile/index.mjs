@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, UpdateCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 // ── DynamoDB Client ──────────────────────────────────────────────────────────
 
@@ -8,7 +8,8 @@ const docClient = DynamoDBDocumentClient.from(client, {
   marshallOptions: { removeUndefinedValues: true },
 });
 
-const USERS_TABLE = process.env.USERS_TABLE;
+const USERS_TABLE   = process.env.USERS_TABLE;
+const REPORTS_TABLE = process.env.REPORTS_TABLE;
 
 // ── CORS Headers ─────────────────────────────────────────────────────────────
 
@@ -51,14 +52,42 @@ const getTestGroup = (studentClass) => {
 const VALID_CLASSES = ["8th", "9th", "10th", "11th", "12th"];
 const VALID_STREAMS = ["Science", "Commerce", "Arts", "Not decided yet"];
 
+// ── Mark the latest unpaid report for this user as paid ───────────────────────
+
+const markLatestReportPaid = async (userId) => {
+  if (!REPORTS_TABLE) return;
+  try {
+    const res = await docClient.send(new QueryCommand({
+      TableName:                 REPORTS_TABLE,
+      IndexName:                 "userId-index",
+      KeyConditionExpression:    "#userId = :userId",
+      ExpressionAttributeNames:  { "#userId": "userId" },
+      ExpressionAttributeValues: { ":userId": userId },
+      ScanIndexForward:          false, // newest first
+    }));
+
+    const unpaid = (res.Items || []).find(r => r.paymentDone === false);
+    if (!unpaid) return; // no unpaid report found
+
+    await docClient.send(new UpdateCommand({
+      TableName:                 REPORTS_TABLE,
+      Key:                       { reportId: unpaid.reportId },
+      UpdateExpression:          "SET paymentDone = :true",
+      ExpressionAttributeValues: { ":true": true },
+    }));
+    console.log("Marked report paid:", unpaid.reportId);
+  } catch (err) {
+    // Non-fatal — payment on user is already set
+    console.error("Failed to mark report paid:", err.message);
+  }
+};
+
 // ── Handler ──────────────────────────────────────────────────────────────────
 
 export const handler = async (event) => {
   console.log("Event:", JSON.stringify(event, null, 2));
 
   try {
-    // 🔁 TODO: Replace with JWT extraction once auth is configured
-    // const userId = event.requestContext.authorizer?.claims?.sub;
     const userId = event.queryStringParameters?.userId;
 
     if (!userId) {
@@ -130,6 +159,11 @@ export const handler = async (event) => {
       })
     );
 
+    // ── If payment is being marked, also mark the latest unpaid report paid ───
+    if (updates.paymentDone === true) {
+      await markLatestReportPaid(userId);
+    }
+
     const u = result.Attributes;
 
     return response(200, {
@@ -156,4 +190,3 @@ export const handler = async (event) => {
     return response(500, { success: false, error: "Failed to update user profile" });
   }
 };
-
