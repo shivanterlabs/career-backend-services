@@ -66,7 +66,7 @@ const markLatestReportPaid = async (userId) => {
       ScanIndexForward:          false, // newest first
     }));
 
-    const unpaid = (res.Items || []).find(r => r.paymentDone === false);
+    const unpaid = (res.Items || []).find(r => !r.paymentDone);
     if (!unpaid) return; // no unpaid report found
 
     await docClient.send(new UpdateCommand({

@@ -99,7 +99,7 @@ export const handler = async (event) => {
         reportId:    r.reportId,
         sessionId:   r.sessionId,
         generatedAt: r.generatedAt,
-        paymentDone: r.paymentDone === true,
+        paymentDone: "paymentDone" in r ? r.paymentDone === true : user.paymentDone === true,
         topCareer:   r.careerMatches?.[0]?.career || r.partialReport?.topCareers?.[0]?.career || null,
         matchScore:  r.careerMatches?.[0]?.matchScore || r.partialReport?.topCareers?.[0]?.matchScore || null,
       }));
@@ -114,7 +114,7 @@ export const handler = async (event) => {
         return response(404, { success: false, error: "Report not found" });
       }
       const report = reportRes.Item;
-      const paid   = report.paymentDone === true;
+      const paid   = "paymentDone" in report ? report.paymentDone === true : user.paymentDone === true;
       return response(200, { success: true, data: paid ? fullReportPayload(report) : partialReportPayload(report) });
     }
 
@@ -132,7 +132,7 @@ export const handler = async (event) => {
     }
 
     const report = reportRes.Items[0];
-    const paid   = report.paymentDone === true;
+    const paid   = "paymentDone" in report ? report.paymentDone === true : user.paymentDone === true;
 
     return response(200, { success: true, data: paid ? fullReportPayload(report) : partialReportPayload(report) });
 
