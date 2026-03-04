@@ -36,6 +36,7 @@ const ALLOWED_FIELDS = [
   "stream",
   "subjectPerformance",  // { maths: "A", science: "B+" ... }
   "subjectRatings",      // { maths: 3, science: 4 ... }
+  "paymentDone",         // set true after successful payment
 ];
 
 // ── testGroup derived from studentClass ──────────────────────────────────────
