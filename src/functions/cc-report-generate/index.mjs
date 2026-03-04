@@ -16,6 +16,8 @@ const QUESTIONS_TABLE     = process.env.QUESTIONS_TABLE;
 const USERS_TABLE         = process.env.USERS_TABLE;
 const REPORTS_TABLE       = process.env.REPORTS_TABLE;
 
+const REPORT_VERSION = "1.1.0";
+
 // ── Career Database ───────────────────────────────────────────────────────────
 // riasecWeights: importance of each RIASEC code for this career (sum = 1)
 // aptitudeWeights: importance of each aptitude sub-type (sum = 1)
@@ -766,7 +768,7 @@ export const handler = async (event) => {
       },
       pdfUrl:        null, // generated separately on demand
       generatedAt:   now,
-      modelVersion:  "claude-sonnet-4-6",
+      modelVersion:  `claude-sonnet-4-6 v${REPORT_VERSION}`,
     };
 
     // ── 9. Store report ──────────────────────────────────────────────────────
