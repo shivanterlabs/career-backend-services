@@ -66,7 +66,11 @@ const markLatestReportPaid = async (userId) => {
       ScanIndexForward:          false, // newest first
     }));
 
-    const unpaid = (res.Items || []).find(r => !r.paymentDone);
+    // Sort newest-first by generatedAt (userId-index has no sort key so DynamoDB order is random)
+    const sorted = (res.Items || []).sort((a, b) =>
+      (b.generatedAt || "").localeCompare(a.generatedAt || "")
+    );
+    const unpaid = sorted.find(r => !r.paymentDone);
     if (!unpaid) return; // no unpaid report found
 
     await docClient.send(new UpdateCommand({

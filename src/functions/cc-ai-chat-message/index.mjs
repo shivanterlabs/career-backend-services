@@ -109,6 +109,9 @@ function getSectorDetails(sector_id) {
 // ── System prompt builder ─────────────────────────────────────────────────────
 
 function buildSystemPrompt(user, report) {
+  // Prefer the per-test name stored in the report over the shared account name
+  const firstName = report?.testTakerName?.firstName || user.firstName || "the student";
+
   const careerMatches = report?.careerMatches
     ?.slice(0, 5)
     .map((c, i) => `  ${i + 1}. ${c.career} (match: ${c.matchScore}%)`)
@@ -129,7 +132,7 @@ function buildSystemPrompt(user, report) {
   const topMatch = report?.careerMatches?.[0]?.career || null;
 
   return `You are ChillCareer AI — a friendly, encouraging career counsellor for Indian students aged 13–18.
-You are talking to ${user.firstName || "the student"}, a Class ${user.studentClass || "unknown"} student from ${user.city || "India"}, ${user.state || ""}.
+You are talking to ${firstName}, a Class ${user.studentClass || "unknown"} student from ${user.city || "India"}, ${user.state || ""}.
 
 === STUDENT PROFILE (remember this throughout the conversation) ===
 Stream: ${user.stream || "Not decided yet"}
