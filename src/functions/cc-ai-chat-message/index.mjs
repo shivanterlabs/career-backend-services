@@ -52,7 +52,7 @@ const REPORTS_TABLE  = process.env.REPORTS_TABLE;
 const AI_CHATS_TABLE = process.env.AI_CHATS_TABLE;
 const FREE_LIMIT     = parseInt(process.env.AI_CHAT_FREE_LIMIT || "50", 10);
 const MODEL          = "claude-haiku-4-5-20251001";
-const MAX_TOKENS     = 800;    // reply (~500 words) + suggestions JSON overhead
+const MAX_TOKENS     = 500;    // reply (~150 words) + suggestions JSON overhead
 const MAX_HISTORY    = 16;     // last 8 exchanges (16 messages)
 const MSG_CHAR_LIMIT = 600;    // ~150 tokens — student message cap
 
@@ -159,7 +159,7 @@ ${SECTOR_INDEX}
 === RESPONSE FORMAT ===
 You MUST respond with a valid JSON object — no text before or after:
 {
-  "reply": "Your response here. Max 350 words. Markdown supported (bold, bullets). Be warm and specific.",
+  "reply": "Your response here. Max 120 words. Be warm, direct, and specific. Use bullets only when listing 3+ items.",
   "suggestions": [
     "Suggestion one — max 10 words?",
     "Suggestion two — max 10 words?",
