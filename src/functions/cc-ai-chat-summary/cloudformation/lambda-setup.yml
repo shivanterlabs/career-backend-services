@@ -66,11 +66,10 @@ Resources:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
               - Effect: Allow
                 Action:
-                  - dynamodb:Query
+                  - dynamodb:GetItem
                   - dynamodb:UpdateItem
                 Resource:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-ai-chats-${DynamoDBTableSuffix}
-                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-ai-chats-${DynamoDBTableSuffix}/index/userId-index
               - Effect: Allow
                 Action:
                   - logs:CreateLogGroup

@@ -2,7 +2,6 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   GetCommand,
-  QueryCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import Anthropic from "@anthropic-ai/sdk";
@@ -71,18 +70,11 @@ Do NOT use headers or bullet points — write flowing paragraphs.`;
 
 // ── DynamoDB helpers ──────────────────────────────────────────────────────────
 
-async function getChat(userId) {
+async function getChat(chatId) {
   const res = await dynamo.send(
-    new QueryCommand({
-      TableName:                 AI_CHATS_TABLE,
-      IndexName:                 "userId-index",
-      KeyConditionExpression:    "#uid = :uid",
-      ExpressionAttributeNames:  { "#uid": "userId" },
-      ExpressionAttributeValues: { ":uid": userId },
-      Limit:                     1,
-    })
+    new GetCommand({ TableName: AI_CHATS_TABLE, Key: { chatId } })
   );
-  return res.Items?.[0] || null;
+  return res.Item || null;
 }
 
 async function storeSummary(chatId, summary) {
@@ -105,9 +97,13 @@ export const handler = async (event) => {
 
   try {
     // ── 1. Parse input ───────────────────────────────────────────────────────
-    const userId = event.queryStringParameters?.userId;
+    const userId   = event.queryStringParameters?.userId;
+    const reportId = event.queryStringParameters?.reportId;
     if (!userId) {
       return resp(400, { success: false, error: "userId is required" });
+    }
+    if (!reportId) {
+      return resp(400, { success: false, error: "reportId is required" });
     }
 
     // ── 2. Fetch user ────────────────────────────────────────────────────────
@@ -120,7 +116,8 @@ export const handler = async (event) => {
     }
 
     // ── 3. Fetch chat ────────────────────────────────────────────────────────
-    const chat = await getChat(userId);
+    const chatId = `${userId}::${reportId}`;
+    const chat   = await getChat(chatId);
     if (!chat) {
       return resp(404, { success: false, error: "No chat session found" });
     }

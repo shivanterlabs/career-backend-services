@@ -3,11 +3,9 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
-  QueryCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import Anthropic from "@anthropic-ai/sdk";
-import { randomUUID } from "crypto";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -271,26 +269,20 @@ function parseClaudeResponse(rawText) {
 
 // ── DynamoDB helpers ──────────────────────────────────────────────────────────
 
-async function getChat(userId) {
+async function getChat(chatId) {
   const res = await dynamo.send(
-    new QueryCommand({
-      TableName:                 AI_CHATS_TABLE,
-      IndexName:                 "userId-index",
-      KeyConditionExpression:    "#uid = :uid",
-      ExpressionAttributeNames:  { "#uid": "userId" },
-      ExpressionAttributeValues: { ":uid": userId },
-      Limit:                     1,
-    })
+    new GetCommand({ TableName: AI_CHATS_TABLE, Key: { chatId } })
   );
-  return res.Items?.[0] || null;
+  return res.Item || null;
 }
 
-async function createChat(userId) {
-  const chatId = randomUUID();
+async function createChat(userId, reportId) {
+  const chatId = `${userId}::${reportId}`;
   const now    = new Date().toISOString();
   const item   = {
     chatId,
     userId,
+    reportId,
     messages:          [],
     messageCount:      0,
     freeLimit:         FREE_LIMIT,
@@ -328,19 +320,11 @@ async function updateUserMessageCount(userId, count) {
   );
 }
 
-async function getLatestReport(userId) {
+async function getReport(reportId) {
   const res = await dynamo.send(
-    new QueryCommand({
-      TableName:                 REPORTS_TABLE,
-      IndexName:                 "userId-index",
-      KeyConditionExpression:    "#uid = :uid",
-      ExpressionAttributeNames:  { "#uid": "userId" },
-      ExpressionAttributeValues: { ":uid": userId },
-      ScanIndexForward:          false,
-      Limit:                     1,
-    })
+    new GetCommand({ TableName: REPORTS_TABLE, Key: { reportId } })
   );
-  return res.Items?.[0] || null;
+  return res.Item || null;
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -364,6 +348,11 @@ export const handler = async (event) => {
       return resp(400, { success: false, error: "Invalid JSON body" });
     }
 
+    const reportId = (body.reportId || "").trim();
+    if (!reportId) {
+      return resp(400, { success: false, error: "reportId is required" });
+    }
+
     const rawMessage = (body.message || "").trim();
     if (!rawMessage) {
       return resp(400, { success: false, error: "message is required" });
@@ -373,9 +362,10 @@ export const handler = async (event) => {
     const message = rawMessage.slice(0, MSG_CHAR_LIMIT);
 
     // ── 2. Fetch user + report in parallel ───────────────────────────────────
+    const chatId = `${userId}::${reportId}`;
     const [userRes, report] = await Promise.all([
       dynamo.send(new GetCommand({ TableName: USERS_TABLE, Key: { userId } })),
-      getLatestReport(userId),
+      getReport(reportId),
     ]);
 
     const user = userRes.Item;
@@ -384,9 +374,9 @@ export const handler = async (event) => {
     }
 
     // ── 3. Get or create chat session ────────────────────────────────────────
-    let chat = await getChat(userId);
+    let chat = await getChat(chatId);
     if (!chat) {
-      chat = await createChat(userId);
+      chat = await createChat(userId, reportId);
     }
 
     // ── 4. Check message limit ───────────────────────────────────────────────
