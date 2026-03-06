@@ -20,12 +20,15 @@ const CAREER_DATA = JSON.parse(
 // Light sector index — stays in system prompt always (~300 tokens)
 const SECTOR_INDEX = CAREER_DATA.sectors
   .filter((s) => s.sector_id)
-  .map(
-    (s) =>
-      `  ${s.sector_id.padEnd(5)} — ${s.sector_name} (streams: ${
-        s.streams_required?.join(", ") || "Any"
-      })`
-  )
+  .map((s) => {
+    let streams = "Any";
+    if (Array.isArray(s.streams_required)) {
+      streams = s.streams_required.join(", ");
+    } else if (s.streams_required && typeof s.streams_required === "object") {
+      streams = Object.keys(s.streams_required).join(", ");
+    }
+    return `  ${s.sector_id.padEnd(5)} — ${s.sector_name} (streams: ${streams})`;
+  })
   .join("\n");
 
 // sector_id → full sector object for tool lookup
