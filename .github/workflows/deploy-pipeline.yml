@@ -128,6 +128,10 @@ jobs:
           cd src/functions/${{ matrix.function }}
           npm install --production
 
+      - name: Bundle career knowledge base (cc-ai-chat-message only)
+        if: matrix.function == 'cc-ai-chat-message'
+        run: cp career_details.json src/functions/cc-ai-chat-message/
+
       - name: Zip Lambda function code
         run: |
           cd src/functions/${{ matrix.function }}
@@ -145,10 +149,6 @@ jobs:
           aws s3 cp src/functions/${{ matrix.function }}/function.zip \
             s3://$BUCKET/${{ matrix.function }}/function.zip \
             --region $REGION
-
-      - name: Bundle career knowledge base (cc-ai-chat-message only)
-        if: matrix.function == 'cc-ai-chat-message'
-        run: cp career_details.json src/functions/cc-ai-chat-message/
 
       - name: Set function-specific extra params
         run: |
