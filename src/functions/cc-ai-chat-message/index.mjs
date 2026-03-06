@@ -52,7 +52,7 @@ const REPORTS_TABLE  = process.env.REPORTS_TABLE;
 const AI_CHATS_TABLE = process.env.AI_CHATS_TABLE;
 const FREE_LIMIT     = parseInt(process.env.AI_CHAT_FREE_LIMIT || "50", 10);
 const MODEL          = "claude-haiku-4-5-20251001";
-const MAX_TOKENS     = 500;    // reply (~150 words) + suggestions JSON overhead
+const MAX_TOKENS     = 700;    // reply (~180 words) + JSON wrapper + tool-use overhead
 const MAX_HISTORY    = 16;     // last 8 exchanges (16 messages)
 const MSG_CHAR_LIMIT = 600;    // ~150 tokens — student message cap
 
@@ -159,19 +159,23 @@ ${SECTOR_INDEX}
 === RESPONSE FORMAT ===
 You MUST respond with a valid JSON object — no text before or after:
 {
-  "reply": "Your response here. Max 120 words. Be warm, direct, and specific. Use bullets only when listing 3+ items.",
-  "suggestions": [
-    "Suggestion one — max 10 words?",
-    "Suggestion two — max 10 words?",
-    "Suggestion three — max 10 words?"
-  ]
+  "reply": "...",
+  "suggestions": ["...", "...", "..."]
 }
 
-Suggestion rules:
-1. First: goes DEEPER into what you just discussed
-2. Second: explores a RELATED alternative or comparison
-3. Third: addresses a PRACTICAL concern (exam / cost / timeline / scholarship)
-All 3 must be within career guidance scope. Max 10 words each.
+REPLY rules — CRITICAL:
+- Plain conversational text ONLY. This is a mobile chat — text renders as-is.
+- NEVER use: ** bold **, # headers, | tables |, markdown of any kind.
+- For lists: use a simple dash and space at the start: "- item one\n- item two"
+- Max 150 words. Always finish your sentence completely before stopping.
+- Be warm, direct, and specific to this student.
+
+SUGGESTIONS rules:
+- Exactly 3 short follow-up questions, max 10 words each.
+- First: goes DEEPER into what you just discussed.
+- Second: explores a RELATED alternative or comparison.
+- Third: addresses a PRACTICAL concern (exam / cost / timeline / scholarship).
+- All 3 must stay within career guidance scope.
 
 === GUARDRAILS ===
 1. ONLY recommend courses and career paths present in the sector data you fetch.
