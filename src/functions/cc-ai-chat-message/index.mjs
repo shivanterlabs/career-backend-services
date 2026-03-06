@@ -52,7 +52,7 @@ const REPORTS_TABLE  = process.env.REPORTS_TABLE;
 const AI_CHATS_TABLE = process.env.AI_CHATS_TABLE;
 const FREE_LIMIT     = parseInt(process.env.AI_CHAT_FREE_LIMIT || "50", 10);
 const MODEL          = "claude-haiku-4-5-20251001";
-const MAX_TOKENS     = 700;    // reply (~180 words) + JSON wrapper + tool-use overhead
+const MAX_TOKENS     = 1024;   // must cover JSON wrapper + tool-use overhead + ~200 word reply
 const MAX_HISTORY    = 16;     // last 8 exchanges (16 messages)
 const MSG_CHAR_LIMIT = 600;    // ~150 tokens — student message cap
 
@@ -245,6 +245,20 @@ async function callClaude(systemPrompt, apiMessages) {
   return textBlock?.text || "";
 }
 
+// ── Strip markdown artifacts from plain-text reply ───────────────────────────
+
+function sanitize(text) {
+  return text
+    .replace(/\*\*/g, "")           // **bold**
+    .replace(/\*/g, "")             // *italic*
+    .replace(/^#{1,6}\s*/gm, "")   // # headers
+    .replace(/\|[^\n]+/g, "")      // | table cells
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // [link](url) → link text
+    .replace(/`([^`]+)`/g, "$1")   // `code` → plain text
+    .replace(/\n{3,}/g, "\n\n")    // collapse excessive blank lines
+    .trim();
+}
+
 // ── Parse Claude's JSON response ──────────────────────────────────────────────
 
 function parseClaudeResponse(rawText) {
@@ -255,13 +269,18 @@ function parseClaudeResponse(rawText) {
     if (start === -1 || end === -1) throw new Error("no JSON");
     const parsed = JSON.parse(rawText.slice(start, end + 1));
     return {
-      reply:       typeof parsed.reply === "string" ? parsed.reply.trim() : rawText,
+      reply:       typeof parsed.reply === "string" ? sanitize(parsed.reply) : sanitize(rawText),
       suggestions: Array.isArray(parsed.suggestions)
         ? parsed.suggestions.slice(0, 3).map((s) => String(s).trim())
         : [],
     };
   } catch {
-    return { reply: rawText.trim(), suggestions: [] };
+    // JSON truncated or malformed — strip any partial JSON syntax and return plain text
+    const clean = rawText
+      .replace(/^\s*\{.*?"reply"\s*:\s*"/s, "")  // strip leading {"reply":"
+      .replace(/",?\s*"suggestions"[\s\S]*$/s, "") // strip trailing suggestions block
+      .trim();
+    return { reply: sanitize(clean || rawText), suggestions: [] };
   }
 }
 
