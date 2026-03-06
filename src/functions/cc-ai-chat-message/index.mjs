@@ -245,14 +245,11 @@ async function callClaude(systemPrompt, apiMessages) {
 
 function parseClaudeResponse(rawText) {
   try {
-    // Claude sometimes wraps JSON in markdown code blocks — strip them
-    const cleaned = rawText
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-
-    const parsed = JSON.parse(cleaned);
+    // Find the outermost { ... } — handles leading text, code fences, etc.
+    const start = rawText.indexOf("{");
+    const end   = rawText.lastIndexOf("}");
+    if (start === -1 || end === -1) throw new Error("no JSON");
+    const parsed = JSON.parse(rawText.slice(start, end + 1));
     return {
       reply:       typeof parsed.reply === "string" ? parsed.reply.trim() : rawText,
       suggestions: Array.isArray(parsed.suggestions)
@@ -260,7 +257,6 @@ function parseClaudeResponse(rawText) {
         : [],
     };
   } catch {
-    // JSON parse failed — treat full response as plain reply
     return { reply: rawText.trim(), suggestions: [] };
   }
 }
