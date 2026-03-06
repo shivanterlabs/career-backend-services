@@ -211,23 +211,18 @@ async function callClaude(systemPrompt, apiMessages) {
       return textBlock?.text || "";
     }
 
-    // Handle tool call
-    const toolUseBlock = res.content.find((b) => b.type === "tool_use");
-    const sectorData   = getSectorDetails(toolUseBlock.input.sector_id);
+    // Handle ALL tool_use blocks in this response (Claude can call multiple tools at once)
+    const toolUseBlocks = res.content.filter((b) => b.type === "tool_use");
+    const toolResults   = toolUseBlocks.map((block) => ({
+      type:        "tool_result",
+      tool_use_id: block.id,
+      content:     JSON.stringify(getSectorDetails(block.input.sector_id)),
+    }));
 
     messages = [
       ...messages,
       { role: "assistant", content: res.content },
-      {
-        role: "user",
-        content: [
-          {
-            type:        "tool_result",
-            tool_use_id: toolUseBlock.id,
-            content:     JSON.stringify(sectorData),
-          },
-        ],
-      },
+      { role: "user",      content: toolResults },
     ];
 
     iterations++;
