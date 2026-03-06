@@ -62,6 +62,7 @@ Resources:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
               - Effect: Allow
                 Action:
+                  - dynamodb:GetItem
                   - dynamodb:Query
                 Resource:
                   - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-reports-${DynamoDBTableSuffix}
