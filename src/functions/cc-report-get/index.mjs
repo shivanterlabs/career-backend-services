@@ -40,6 +40,7 @@ const queryUserReports = (userId) =>
 const fullReportPayload = (report) => ({
   reportId:             report.reportId,
   sessionId:            report.sessionId,
+  testTakerName:        report.testTakerName || null,
   isPartial:            false,
   paymentDone:          true,
   careerMatches:        report.careerMatches,
@@ -61,6 +62,7 @@ const fullReportPayload = (report) => ({
 const partialReportPayload = (report) => ({
   reportId:        report.reportId,
   sessionId:       report.sessionId,
+  testTakerName:   report.testTakerName || null,
   isPartial:       true,
   paymentDone:     false,
   partialReport:   report.partialReport,
@@ -96,12 +98,13 @@ export const handler = async (event) => {
       const items      = reportsRes.Items || [];
 
       const summaries = items.map(r => ({
-        reportId:    r.reportId,
-        sessionId:   r.sessionId,
-        generatedAt: r.generatedAt,
-        paymentDone: "paymentDone" in r ? r.paymentDone === true : user.paymentDone === true,
-        topCareer:   r.careerMatches?.[0]?.career || r.partialReport?.topCareers?.[0]?.career || null,
-        matchScore:  r.careerMatches?.[0]?.matchScore || r.partialReport?.topCareers?.[0]?.matchScore || null,
+        reportId:      r.reportId,
+        sessionId:     r.sessionId,
+        generatedAt:   r.generatedAt,
+        paymentDone:   "paymentDone" in r ? r.paymentDone === true : user.paymentDone === true,
+        testTakerName: r.testTakerName || null,
+        topCareer:     r.careerMatches?.[0]?.career || r.partialReport?.topCareers?.[0]?.career || null,
+        matchScore:    r.careerMatches?.[0]?.matchScore || r.partialReport?.topCareers?.[0]?.matchScore || null,
       }));
 
       return response(200, { success: true, data: { reports: summaries } });

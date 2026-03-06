@@ -51,7 +51,7 @@ export const handler = async (event) => {
       return response(400, { success: false, error: "Invalid JSON body" });
     }
 
-    const { testId, answers, timings, totalTimeSecs } = body;
+    const { testId, answers, timings, totalTimeSecs, testTakerName } = body;
 
     if (!testId) {
       return response(400, { success: false, error: "testId is required" });
@@ -95,6 +95,7 @@ export const handler = async (event) => {
           userId,
           testId,
           testGroup,
+          testTakerName: testTakerName || null,
           answers:       answers,
           timings:       timings || {},
           totalTimeSecs,

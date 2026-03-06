@@ -661,6 +661,13 @@ export const handler = async (event) => {
     const answers      = session.answers  || {};
     const timings      = session.timings  || {};
 
+    // Merge testTakerName from session (supports multiple students per device)
+    const effectiveProfile = {
+      ...user,
+      firstName: session.testTakerName?.firstName || user.firstName,
+      lastName:  session.testTakerName?.lastName  || user.lastName,
+    };
+
     // Split by section
     const bySection = (sec) => allQuestions.filter(q => q.section === sec);
 
@@ -678,13 +685,13 @@ export const handler = async (event) => {
     const scoring = { riasec, aptitude, personality, workValues, consistency, speedRisk };
 
     // ── 6. Match careers ─────────────────────────────────────────────────────
-    const careerMatches   = matchCareers(riasec, aptitude, personality, workValues, user);
-    const streamRec       = recommendStream(careerMatches, user);
+    const careerMatches   = matchCareers(riasec, aptitude, personality, workValues, effectiveProfile);
+    const streamRec       = recommendStream(careerMatches, effectiveProfile);
 
     // ── 7. Claude AI narrative ───────────────────────────────────────────────
     let narrative;
     try {
-      narrative = await generateNarrative(user, scoring, careerMatches, selfDeclared);
+      narrative = await generateNarrative(effectiveProfile, scoring, careerMatches, selfDeclared);
     } catch (aiErr) {
       console.error("Claude API error (non-fatal):", aiErr.message);
       narrative = {
@@ -719,6 +726,7 @@ export const handler = async (event) => {
       reportId,
       userId,
       sessionId,
+      testTakerName: session.testTakerName || { firstName: user.firstName, lastName: user.lastName },
       isPartial: false,
 
       // Partial teaser (shown before payment)
