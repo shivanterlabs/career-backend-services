@@ -340,8 +340,8 @@ jobs:
             echo "EXTRA_PARAMS=ApiGatewayReportResourceId=${ID} ReportsBucketName=${REPORTS_BUCKET}" >> $GITHUB_ENV
 
           elif [ "$FN" == "cc-ai-chat-summary" ]; then
-            ID=$(fetch_resource_id "items[?path=='/ai'].id")
-            echo "EXTRA_PARAMS=ApiGatewayAiResourceId=${ID}" >> $GITHUB_ENV
+            ID=$(fetch_resource_id "items[?path=='/ai/chat'].id")
+            echo "EXTRA_PARAMS=ApiGatewayAiChatResourceId=${ID} AnthropicApiKey=${{ secrets.ANTHROPIC_API_KEY }}" >> $GITHUB_ENV
 
           elif [ "$FN" == "cc-admin-dashboard-get" ] || [ "$FN" == "cc-admin-users-get" ] || [ "$FN" == "cc-admin-tests-create" ] || [ "$FN" == "cc-admin-questions-create" ] || [ "$FN" == "cc-admin-payments-get" ] || [ "$FN" == "cc-admin-email-templates-get" ]; then
             ID=$(fetch_resource_id "items[?path=='/admin'].id")

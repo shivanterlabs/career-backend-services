@@ -1,0 +1,12 @@
+{
+  "name": "cc-ai-chat-summary",
+  "version": "1.0.0",
+  "description": "ChillCareer — Generate and serve AI chat session summary",
+  "type": "module",
+  "main": "index.mjs",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
+  }
+}

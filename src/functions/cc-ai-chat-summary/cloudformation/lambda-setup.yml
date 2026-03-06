@@ -1,0 +1,145 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Parameters:
+  ApiGatewayRestApiId:
+    Type: String
+  ApiGatewayAiChatResourceId:     # imported from cc-ai-chat-message stack (/ai/chat)
+    Type: String
+  StageName:
+    Type: String
+  Env:
+    Type: String
+    Default: Development
+  BucketName:
+    Type: String
+  DynamoDBTableSuffix:
+    Type: String
+    Default: dev
+  AnthropicApiKey:
+    Type: String
+    NoEcho: true
+
+Resources:
+
+  # ── Lambda ───────────────────────────────────────────────────────────────────
+  AiChatSummaryLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub cc-ai-chat-summary-${StageName}
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          STAGE:             !Ref StageName
+          USERS_TABLE:       !Sub cc-users-${DynamoDBTableSuffix}
+          AI_CHATS_TABLE:    !Sub cc-ai-chats-${DynamoDBTableSuffix}
+          ANTHROPIC_API_KEY: !Ref AnthropicApiKey
+      Code:
+        S3Bucket: !Ref BucketName
+        S3Key: cc-ai-chat-summary/function.zip
+      Role: !GetAtt AiChatSummaryRole.Arn
+      TracingConfig:
+        Mode: Active
+
+  # ── IAM Role ─────────────────────────────────────────────────────────────────
+  AiChatSummaryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AiChatSummaryPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-users-${DynamoDBTableSuffix}
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-ai-chats-${DynamoDBTableSuffix}
+                  - !Sub arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/cc-ai-chats-${DynamoDBTableSuffix}/index/userId-index
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+
+  # ── Lambda Permission ─────────────────────────────────────────────────────────
+  AiChatSummaryPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AiChatSummaryLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayRestApiId}/*
+
+  # ── API Gateway: /ai/chat/summary ────────────────────────────────────────────
+  AiChatSummaryResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref ApiGatewayRestApiId
+      ParentId:  !Ref ApiGatewayAiChatResourceId
+      PathPart:  summary
+
+  # ── GET /ai/chat/summary ──────────────────────────────────────────────────────
+  AiChatSummaryGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId:         !Ref ApiGatewayRestApiId
+      ResourceId:        !Ref AiChatSummaryResource
+      HttpMethod:        GET
+      AuthorizationType: NONE
+      Integration:
+        Type:                  AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - { LambdaArn: !GetAtt AiChatSummaryLambda.Arn }
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: "'*'"
+
+  # ── OPTIONS /ai/chat/summary (CORS) ───────────────────────────────────────────
+  AiChatSummaryOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId:         !Ref ApiGatewayRestApiId
+      ResourceId:        !Ref AiChatSummaryResource
+      HttpMethod:        OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{ "statusCode": 200 }'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Origin:  "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'GET, OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type, Authorization'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin:  true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Headers: true
